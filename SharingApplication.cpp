@@ -22,7 +22,7 @@
  */
 
 #include "SharingApplication.h"
-#include "SharingUtils.h"
+#include "MobileSharing.h"
 
 #include <QGuiApplication>
 #include <QQmlContext>
@@ -37,7 +37,7 @@
 
 SharingApplication::SharingApplication(int &argc, char **argv) : QGuiApplication(argc, argv)
 {
-    mShareUtils = new ShareUtils(this);
+    mShareUtils = new MobileSharing(this);
 
     connect(this, &QGuiApplication::applicationStateChanged, this, &SharingApplication::onApplicationStateChanged);
 }

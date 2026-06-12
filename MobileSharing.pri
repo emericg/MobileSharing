@@ -1,9 +1,9 @@
 QT += core gui qml
 
-SOURCES += $${PWD}/SharingUtils.cpp \
+SOURCES += $${PWD}/MobileSharing.cpp \
            $${PWD}/SharingApplication.cpp
 
-HEADERS += $${PWD}/SharingUtils.h \
+HEADERS += $${PWD}/MobileSharing.h \
            $${PWD}/SharingApplication.h
 
 INCLUDEPATH += $${PWD}
@@ -11,8 +11,8 @@ INCLUDEPATH += $${PWD}
 android {
     QT += core-private
 
-    SOURCES += $${PWD}/SharingUtils_android.cpp
-    HEADERS += $${PWD}/SharingUtils_android.h
+    SOURCES += $${PWD}/MobileSharing_android.cpp
+    HEADERS += $${PWD}/MobileSharing_android.h
 
     # Add this line to the dependencies {} section of 'build.gradle' file:
     #implementation 'androidx.appcompat:appcompat:1.6.1'
@@ -36,9 +36,9 @@ android {
 ios {
     LIBS += -framework UIKit
 
-    SOURCES += $${PWD}/SharingUtils_ios.mm \
+    SOURCES += $${PWD}/MobileSharing_ios.mm \
                $${PWD}/docviewcontroller_ios.mm
 
-    HEADERS += $${PWD}/SharingUtils_ios.h \
+    HEADERS += $${PWD}/MobileSharing_ios.h \
                $${PWD}/docviewcontroller_ios.h
 }

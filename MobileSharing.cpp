@@ -21,17 +21,17 @@
  * SOFTWARE.
  */
 
-#include "SharingUtils.h"
+#include "MobileSharing.h"
 
 #if defined(Q_OS_IOS)
-#include "SharingUtils_ios.h"
+#include "MobileSharing_ios.h"
 #elif defined(Q_OS_ANDROID)
-#include "SharingUtils_android.h"
+#include "MobileSharing_android.h"
 #endif
 
 /* ************************************************************************** */
 
-ShareUtils::ShareUtils(QObject *parent) : QObject(parent)
+MobileSharing::MobileSharing(QObject *parent) : QObject(parent)
 {
 #if defined(Q_OS_IOS)
     mPlatformShareUtils = new IosShareUtils(this);
@@ -41,22 +41,22 @@ ShareUtils::ShareUtils(QObject *parent) : QObject(parent)
     mPlatformShareUtils = new PlatformShareUtils(this);
 #endif
 
-    bool connectResult = connect(mPlatformShareUtils, &PlatformShareUtils::shareEditDone, this, &ShareUtils::onShareEditDone);
+    bool connectResult = connect(mPlatformShareUtils, &PlatformShareUtils::shareEditDone, this, &MobileSharing::onShareEditDone);
     Q_ASSERT(connectResult);
 
-    connectResult = connect(mPlatformShareUtils, &PlatformShareUtils::shareFinished, this, &ShareUtils::onShareFinished);
+    connectResult = connect(mPlatformShareUtils, &PlatformShareUtils::shareFinished, this, &MobileSharing::onShareFinished);
     Q_ASSERT(connectResult);
 
-    connectResult = connect(mPlatformShareUtils, &PlatformShareUtils::shareNoAppAvailable, this, &ShareUtils::onShareNoAppAvailable);
+    connectResult = connect(mPlatformShareUtils, &PlatformShareUtils::shareNoAppAvailable, this, &MobileSharing::onShareNoAppAvailable);
     Q_ASSERT(connectResult);
 
-    connectResult = connect(mPlatformShareUtils, &PlatformShareUtils::shareError, this, &ShareUtils::onShareError);
+    connectResult = connect(mPlatformShareUtils, &PlatformShareUtils::shareError, this, &MobileSharing::onShareError);
     Q_ASSERT(connectResult);
 
-    connectResult = connect(mPlatformShareUtils, &PlatformShareUtils::fileUrlReceived, this, &ShareUtils::onFileUrlReceived);
+    connectResult = connect(mPlatformShareUtils, &PlatformShareUtils::fileUrlReceived, this, &MobileSharing::onFileUrlReceived);
     Q_ASSERT(connectResult);
 
-    connectResult = connect(mPlatformShareUtils, &PlatformShareUtils::fileReceivedAndSaved, this, &ShareUtils::onFileReceivedAndSaved);
+    connectResult = connect(mPlatformShareUtils, &PlatformShareUtils::fileReceivedAndSaved, this, &MobileSharing::onFileReceivedAndSaved);
     Q_ASSERT(connectResult);
 
     Q_UNUSED(connectResult)
@@ -64,74 +64,74 @@ ShareUtils::ShareUtils(QObject *parent) : QObject(parent)
 
 /* ************************************************************************** */
 
-void ShareUtils::checkPendingIntents(const QString &workingDirPath)
+void MobileSharing::checkPendingIntents(const QString &workingDirPath)
 {
     mPlatformShareUtils->checkPendingIntents(workingDirPath);
 }
 
-bool ShareUtils::checkMimeTypeView(const QString &mimeType)
+bool MobileSharing::checkMimeTypeView(const QString &mimeType)
 {
     return mPlatformShareUtils->checkMimeTypeView(mimeType);
 }
 
-bool ShareUtils::checkMimeTypeEdit(const QString &mimeType)
+bool MobileSharing::checkMimeTypeEdit(const QString &mimeType)
 {
     return mPlatformShareUtils->checkMimeTypeEdit(mimeType);
 }
 
-void ShareUtils::sendText(const QString &text, const QString &subject, const QUrl &url)
+void MobileSharing::sendText(const QString &text, const QString &subject, const QUrl &url)
 {
     mPlatformShareUtils->sendText(text, subject, url);
 }
 
-void ShareUtils::sendFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId)
+void MobileSharing::sendFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId)
 {
     mPlatformShareUtils->sendFile(filePath, title, mimeType, requestId);
 }
 
-void ShareUtils::viewFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId)
+void MobileSharing::viewFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId)
 {
     mPlatformShareUtils->viewFile(filePath, title, mimeType, requestId);
 }
 
-void ShareUtils::editFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId)
+void MobileSharing::editFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId)
 {
     mPlatformShareUtils->editFile(filePath, title, mimeType, requestId);
 }
 
-const QMimeDatabase &ShareUtils::getMimeDatabase() const
+const QMimeDatabase &MobileSharing::getMimeDatabase() const
 {
     return mPlatformShareUtils->getMimeDatabase();
 }
 
 /* ************************************************************************** */
 
-void ShareUtils::onShareEditDone(int requestCode)
+void MobileSharing::onShareEditDone(int requestCode)
 {
     Q_EMIT shareEditDone(requestCode);
 }
 
-void ShareUtils::onShareFinished(int requestCode)
+void MobileSharing::onShareFinished(int requestCode)
 {
     Q_EMIT shareFinished(requestCode);
 }
 
-void ShareUtils::onShareNoAppAvailable(int requestCode)
+void MobileSharing::onShareNoAppAvailable(int requestCode)
 {
     Q_EMIT shareNoAppAvailable(requestCode);
 }
 
-void ShareUtils::onShareError(int requestCode, const QString &message)
+void MobileSharing::onShareError(int requestCode, const QString &message)
 {
     Q_EMIT shareError(requestCode, message);
 }
 
-void ShareUtils::onFileUrlReceived(const QString &url)
+void MobileSharing::onFileUrlReceived(const QString &url)
 {
     Q_EMIT fileUrlReceived(url);
 }
 
-void ShareUtils::onFileReceivedAndSaved(const QString &url)
+void MobileSharing::onFileReceivedAndSaved(const QString &url)
 {
     Q_EMIT fileReceivedAndSaved(url);
 }

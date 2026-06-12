@@ -21,11 +21,11 @@
  * SOFTWARE.
  */
 
-#ifndef SHARINGUTILS_IOS_H
-#define SHARINGUTILS_IOS_H
+#ifndef MOBILESHARING_IOS_H
+#define MOBILESHARING_IOS_H
 /* ************************************************************************** */
 
-#include "SharingUtils.h"
+#include "MobileSharing.h"
 
 /* ************************************************************************** */
 
@@ -52,4 +52,4 @@ public slots:
 };
 
 /* ************************************************************************** */
-#endif // SHARINGUTILS_IOS_H
+#endif // MOBILESHARING_IOS_H

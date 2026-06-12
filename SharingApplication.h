@@ -28,7 +28,7 @@
 #include <QGuiApplication>
 
 class QQmlContext;
-class ShareUtils;
+class MobileSharing;
 
 /* ************************************************************************** */
 
@@ -36,7 +36,7 @@ class SharingApplication : public QGuiApplication
 {
     Q_OBJECT
 
-    ShareUtils *mShareUtils = nullptr;
+    MobileSharing *mShareUtils = nullptr;
     bool mPendingIntentsChecked = false;
 
     QString mAppDataFilesPath;

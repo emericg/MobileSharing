@@ -21,7 +21,7 @@
  * SOFTWARE.
  */
 
-#import "SharingUtils_ios.h"
+#import "MobileSharing_ios.h"
 #import "docviewcontroller_ios.h"
 
 #import <UIKit/UIKit.h>

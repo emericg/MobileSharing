@@ -1,2 +1,2 @@
-#include "SharingUtils.h"
+#include "MobileSharing.h"
 #include "SharingApplication.h"

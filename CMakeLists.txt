@@ -15,7 +15,7 @@ set(CORE_LIBRARIES Qt::Core Qt::Gui Qt::Qml)
 # Generic sources
 set(CORE_SOURCES
     SharingApplication.cpp SharingApplication.h
-    SharingUtils.cpp SharingUtils.h)
+    MobileSharing.cpp MobileSharing.h)
 
 # OS specific sources & dependencies
 if (ANDROID)
@@ -28,13 +28,13 @@ if (ANDROID)
     endif()
 
     set(PLATFORM_SOURCES
-        SharingUtils_android.cpp
-        SharingUtils_android.h)
+        MobileSharing_android.cpp
+        MobileSharing_android.h)
 elseif (IOS)
     find_package(Qt6 REQUIRED COMPONENTS Quick)
     set(PLATFORM_LIBRARIES Qt::Quick)
     set(PLATFORM_SOURCES
-        SharingUtils_ios.mm
+        MobileSharing_ios.mm
         docviewcontroller_ios.mm)
 endif()
 

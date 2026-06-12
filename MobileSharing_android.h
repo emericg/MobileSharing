@@ -21,11 +21,11 @@
  * SOFTWARE.
  */
 
-#ifndef SHARINGUTILS_ANDROID_H
-#define SHARINGUTILS_ANDROID_H
+#ifndef MOBILESHARING_ANDROID_H
+#define MOBILESHARING_ANDROID_H
 /* ************************************************************************** */
 
-#include "SharingUtils.h"
+#include "MobileSharing.h"
 
 #include <QtGlobal>
 #include <QtCore/private/qandroidextras_p.h>
@@ -72,4 +72,4 @@ public slots:
 };
 
 /* ************************************************************************** */
-#endif // SHARINGUTILS_ANDROID_H
+#endif // MOBILESHARING_ANDROID_H

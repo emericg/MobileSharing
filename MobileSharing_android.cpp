@@ -21,7 +21,7 @@
  * SOFTWARE.
  */
 
-#include "SharingUtils_android.h"
+#include "MobileSharing_android.h"
 
 #include <QUrl>
 #include <QDir>
