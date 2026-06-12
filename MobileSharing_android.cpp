@@ -31,6 +31,8 @@
 #include <QCoreApplication>
 #include <QtCore/private/qandroidextras_p.h>
 #include <QJniObject>
+#include <QJniEnvironment>
+#include <jni.h>
 
 /* ************************************************************************** */
 
@@ -40,11 +42,68 @@ const static int RESULT_CANCELED = 0;
 AndroidShareUtils *AndroidShareUtils::mInstance = nullptr;
 
 /* ************************************************************************** */
+/* JNI bridge: implements the 'native' methods declared in QShareActivity.java.
+ * Registered at runtime via QJniEnvironment::registerNativeMethods() (Qt already
+ * owns JNI_OnLoad, so we must not define our own). Each call is forwarded to the
+ * AndroidShareUtils singleton; cross-thread delivery to QML is handled by the
+ * queued signal/slot connections in MobileSharing. */
+
+extern "C"
+{
+
+static void jni_setFileUrlReceived(JNIEnv */*env*/, jobject /*thiz*/, jstring url)
+{
+    AndroidShareUtils::getInstance()->setFileUrlReceived(QJniObject(url).toString());
+}
+
+static void jni_setFileReceivedAndSaved(JNIEnv */*env*/, jobject /*thiz*/, jstring url)
+{
+    AndroidShareUtils::getInstance()->setFileReceivedAndSaved(QJniObject(url).toString());
+}
+
+static void jni_fireActivityResult(JNIEnv */*env*/, jobject /*thiz*/, jint requestCode, jint resultCode)
+{
+    AndroidShareUtils::getInstance()->onActivityResult(requestCode, resultCode);
+}
+
+static jboolean jni_checkFileExits(JNIEnv */*env*/, jobject /*thiz*/, jstring url)
+{
+    return AndroidShareUtils::getInstance()->checkFileExits(QJniObject(url).toString());
+}
+
+} // extern "C"
+
+static void registerNativeMethods()
+{
+    const JNINativeMethod methods[] = {
+        {"setFileUrlReceived",      "(Ljava/lang/String;)V", reinterpret_cast<void *>(jni_setFileUrlReceived)},
+        {"setFileReceivedAndSaved", "(Ljava/lang/String;)V", reinterpret_cast<void *>(jni_setFileReceivedAndSaved)},
+        {"fireActivityResult",      "(II)V",                 reinterpret_cast<void *>(jni_fireActivityResult)},
+        {"checkFileExits",          "(Ljava/lang/String;)Z", reinterpret_cast<void *>(jni_checkFileExits)},
+    };
+
+    QJniEnvironment env;
+    if (!env.registerNativeMethods("io/emeric/utils/QShareActivity", methods,
+                                   sizeof(methods) / sizeof(methods[0])))
+    {
+        qWarning() << "MobileSharing: failed to register QShareActivity native methods";
+    }
+}
+
+/* ************************************************************************** */
 
 AndroidShareUtils::AndroidShareUtils(QObject *parent) : PlatformShareUtils(parent)
 {
     // we need the instance for JNI Call
     mInstance = this;
+
+    // Bind the QShareActivity 'native' methods to our JNI bridge (once)
+    static bool nativesRegistered = false;
+    if (!nativesRegistered)
+    {
+        registerNativeMethods();
+        nativesRegistered = true;
+    }
 
     QJniObject jni = QJniObject("io/emeric/utils/QShareUtils");
 

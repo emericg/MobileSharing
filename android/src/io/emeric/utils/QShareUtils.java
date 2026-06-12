@@ -27,6 +27,7 @@ import java.lang.String;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.InputStream;
+import java.io.FileOutputStream;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -37,6 +38,7 @@ import android.net.Uri;
 import android.os.Parcelable;
 import android.os.Build;
 import android.database.Cursor;
+import android.provider.OpenableColumns;
 import android.provider.MediaStore;
 import android.app.Activity;
 import android.content.Intent;
@@ -44,6 +46,7 @@ import android.content.Context;
 import android.content.ContentResolver;
 import android.content.pm.ResolveInfo;
 import android.content.pm.PackageManager;
+import android.webkit.MimeTypeMap;
 import androidx.core.content.FileProvider;
 import androidx.core.app.ShareCompat;
 
@@ -380,5 +383,68 @@ public class QShareUtils
         editIntent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
 
         return createCustomChooserAndStartActivity(editIntent, title, requestId, uri);
+    }
+
+    // ------------------------------------------------------------------------
+    // Incoming content helpers (used by QShareActivity.processIntent())
+    // ------------------------------------------------------------------------
+
+    // Resolve the human-readable display name of a content:// Uri, or null.
+    public static String getContentName(ContentResolver cR, Uri uri) {
+        Cursor cursor = cR.query(uri, null, null, null, null);
+        if (cursor == null) {
+            return null;
+        }
+        try {
+            int nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+            if (nameIndex >= 0 && cursor.moveToFirst()) {
+                return cursor.getString(nameIndex);
+            }
+        } finally {
+            cursor.close();
+        }
+        return null;
+    }
+
+    // Copy the content behind a content:// Uri into workingDirPath via an
+    // InputStream (fallback when the Uri cannot be resolved to a real file path).
+    // Returns the absolute path of the written file, or null on failure.
+    public static String createFile(ContentResolver cR, Uri uri, String workingDirPath) {
+        if (workingDirPath == null || workingDirPath.isEmpty()) {
+            Log.e("QShareUtils", "createFile: workingDirPath is empty");
+            return null;
+        }
+
+        String name = getContentName(cR, uri);
+        if (name == null || name.isEmpty()) {
+            // fallback name, try to keep an extension from the mime type
+            String ext = MimeTypeMap.getSingleton().getExtensionFromMimeType(cR.getType(uri));
+            name = "shared_" + System.currentTimeMillis() + (ext != null ? "." + ext : "");
+        }
+
+        File dir = new File(workingDirPath);
+        if (!dir.exists() && !dir.mkdirs()) {
+            Log.e("QShareUtils", "createFile: cannot create working dir " + workingDirPath);
+            return null;
+        }
+
+        File file = new File(dir, name);
+        try (InputStream is = cR.openInputStream(uri);
+             FileOutputStream os = new FileOutputStream(file)) {
+            if (is == null) {
+                Log.e("QShareUtils", "createFile: cannot open InputStream for " + uri);
+                return null;
+            }
+            byte[] buffer = new byte[4096];
+            int length;
+            while ((length = is.read(buffer)) > 0) {
+                os.write(buffer, 0, length);
+            }
+            Log.d("QShareUtils", "createFile: wrote " + file.getAbsolutePath());
+            return file.getAbsolutePath();
+        } catch (Exception e) {
+            Log.e("QShareUtils", "createFile: failed - " + e.getMessage());
+            return null;
+        }
     }
 }

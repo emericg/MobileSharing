@@ -29,6 +29,10 @@
 #include "MobileSharing_android.h"
 #endif
 
+#include <QGuiApplication>
+#include <QStandardPaths>
+#include <QDir>
+
 /* ************************************************************************** */
 
 MobileSharing::MobileSharing(QObject *parent) : QObject(parent)
@@ -60,6 +64,35 @@ MobileSharing::MobileSharing(QObject *parent) : QObject(parent)
     Q_ASSERT(connectResult);
 
     Q_UNUSED(connectResult)
+
+    // Self-drive incoming-intent processing so the host needs no custom QGuiApplication
+    // subclass: react to app-state changes, and also handle the case where the app is
+    // already active by the time this object is created (deferred so QML signal handlers
+    // are wired up first).
+    connect(qApp, &QGuiApplication::applicationStateChanged,
+            this, &MobileSharing::onApplicationStateChanged);
+
+    if (qApp->applicationState() == Qt::ApplicationActive)
+    {
+        QMetaObject::invokeMethod(this, "onApplicationStateChanged", Qt::QueuedConnection,
+                                  Q_ARG(Qt::ApplicationState, Qt::ApplicationActive));
+    }
+}
+
+/* ************************************************************************** */
+
+void MobileSharing::onApplicationStateChanged(Qt::ApplicationState state)
+{
+    if (state == Qt::ApplicationActive && !mPendingIntentsChecked)
+    {
+        mPendingIntentsChecked = true;
+
+        // Working dir for received files copied via InputStream (content:// fallback)
+        QString workingDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
+        if (!workingDir.isEmpty()) QDir().mkpath(workingDir);
+
+        mPlatformShareUtils->checkPendingIntents(workingDir);
+    }
 }
 
 /* ************************************************************************** */

@@ -14,7 +14,6 @@ set(CORE_LIBRARIES Qt::Core Qt::Gui Qt::Qml)
 
 # Generic sources
 set(CORE_SOURCES
-    SharingApplication.cpp SharingApplication.h
     MobileSharing.cpp MobileSharing.h)
 
 # OS specific sources & dependencies

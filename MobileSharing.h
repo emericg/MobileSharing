@@ -109,6 +109,12 @@ class MobileSharing : public QObject
     QML_ELEMENT
 
     PlatformShareUtils *mPlatformShareUtils = nullptr;
+    bool mPendingIntentsChecked = false;
+
+private slots:
+    // Self-driven: process a pending incoming share intent the first time the
+    // app becomes active, so the host doesn't need a custom application class.
+    void onApplicationStateChanged(Qt::ApplicationState state);
 
 signals:
     void shareEditDone(int requestCode);

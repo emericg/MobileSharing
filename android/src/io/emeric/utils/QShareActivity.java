@@ -21,9 +21,9 @@
  * SOFTWARE.
  */
 
-package io.emeric.APPLICATIONNAME;
-
-import io.emeric.utils.*;
+// The module owns this Activity under a fixed package, so the host never renames
+// it: just reference "io.emeric.utils.QShareActivity" in the AndroidManifest.
+package io.emeric.utils;
 
 import org.qtproject.qt.android.QtNative;
 import org.qtproject.qt.android.bindings.QtActivity;
@@ -42,6 +42,7 @@ import android.webkit.MimeTypeMap;
 public class QShareActivity extends QtActivity
 {
     // native - must be implemented in Cpp via JNI
+    // (registered from C++ via QJniEnvironment::registerNativeMethods, see MobileSharing_android.cpp)
     // 'file' scheme or resolved from 'content' scheme:
     public static native void setFileUrlReceived(String url);
     // InputStream from 'content' scheme:
@@ -77,20 +78,15 @@ public class QShareActivity extends QtActivity
         }
     }
 
-    // WIP - trying to find a solution to survive a 2nd onCreate
-    // ongoing discussion in QtMob (Slack)
-    // from other Apps not respecting that you only have a singleInstance
-    // there are problems per ex. sharing a file from Google Files App,
-    // but working well using Xiaomi FileManager App
     @Override
     public void onDestroy() {
         Log.d("QShareActivity", " onDestroy() QShareActivity");
-        // super.onDestroy();
-        // System.exit() closes the App before doing onCreate() again
-        // then the App was restarted, but looses context
-        // This works for Samsung My Files
-        // but Google Files doesn't call onDestroy()
-        System.exit(0);
+        // NOTE: historically this called System.exit(0) to work around a 2nd
+        // onCreate() seen with some file managers under singleInstance. That kills
+        // the whole process on any teardown (it was crashing the app right after a
+        // share). With launchMode="singleTask" the running instance is reused via
+        // onNewIntent(), so we keep the normal Activity lifecycle instead.
+        super.onDestroy();
     }
 
     // we start Activity with result code
@@ -143,6 +139,13 @@ public class QShareActivity extends QtActivity
         }
     }
 
+    // Pre-Tiramisu, Intent.getParcelableExtra(String) is the only option but is
+    // deprecated on API 33+; isolate the suppression to this helper.
+    @SuppressWarnings("deprecation")
+    private static Uri legacyExtraStream(Intent intent) {
+        return (Uri) intent.getParcelableExtra(Intent.EXTRA_STREAM);
+    }
+
     // process the Intent if Action is SEND or VIEW
     private void processIntent() {
         Intent intent = getIntent();
@@ -156,8 +159,11 @@ public class QShareActivity extends QtActivity
            intentUri = intent.getData();
         } else if (intent.getAction().equals("android.intent.action.SEND")) {
             intentAction = "SEND";
-            Bundle bundle = intent.getExtras();
-            intentUri = (Uri)bundle.get(Intent.EXTRA_STREAM);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                intentUri = intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri.class);
+            } else {
+                intentUri = legacyExtraStream(intent);
+            }
         } else {
             Log.d("QShareActivity", " processIntent() Intent unknown action: " + intent.getAction());
             return;
