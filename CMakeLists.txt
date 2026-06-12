@@ -2,10 +2,9 @@ cmake_minimum_required(VERSION 3.20)
 
 project(MobileSharing LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(QT_NO_PRIVATE_MODULE_WARNING ON)
-set(CMAKE_AUTOMOC ON)
 
 ################################################################################
 
@@ -20,8 +19,14 @@ set(CORE_SOURCES
 
 # OS specific sources & dependencies
 if (ANDROID)
-    find_package(Qt6 REQUIRED COMPONENTS CorePrivate)
-    set(PLATFORM_LIBRARIES Qt::CorePrivate)
+    if(Qt6Gui_VERSION VERSION_GREATER_EQUAL 6.10.0)
+        find_package(Qt6 REQUIRED COMPONENTS CorePrivate)
+        set(PLATFORM_LIBRARIES ${CORE_LIBRARIES} Qt6::CorePrivate)
+    else()
+        find_package(Qt6 REQUIRED COMPONENTS Core)
+        set(PLATFORM_LIBRARIES ${CORE_LIBRARIES} Qt6::CorePrivate)
+    endif()
+
     set(PLATFORM_SOURCES
         SharingUtils_android.cpp
         SharingUtils_android.h)
@@ -35,8 +40,35 @@ endif()
 
 ################################################################################
 
-add_library(MobileSharing OBJECT ${CORE_SOURCES} ${PLATFORM_SOURCES})
-add_library(MobileSharing::MobileSharing ALIAS MobileSharing)
+qt_add_library(MobileSharing STATIC)
+
+qt_add_qml_module(MobileSharing
+    URI MobileSharing
+    VERSION 1.0
+    DEPENDENCIES QtQuick
+    PLUGIN_TARGET MobileSharing_plugin
+    SOURCES ${CORE_SOURCES} ${PLATFORM_SOURCES}
+    #OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/qml/MobileSharing"
+)
 
 target_link_libraries(MobileSharing PRIVATE ${CORE_LIBRARIES} ${PLATFORM_LIBRARIES})
 target_include_directories(MobileSharing PUBLIC ${CMAKE_CURRENT_LIST_DIR})
+
+################################################################################
+
+# On Android the module owns its Java sources and FileProvider resources.
+# We copy these files into QT_ANDROID_PACKAGE_SOURCE_DIR at configure time.
+if (ANDROID)
+    if (DEFINED MOBILESHARING_ANDROID_PACKAGE_SOURCE_DIR)
+        file(COPY
+            "${CMAKE_CURRENT_SOURCE_DIR}/android/src"
+            "${CMAKE_CURRENT_SOURCE_DIR}/android/res"
+            DESTINATION "${MOBILESHARING_ANDROID_PACKAGE_SOURCE_DIR}")
+        message(STATUS "MobileSharing > Deployed Android Java/res into ${MOBILESHARING_ANDROID_PACKAGE_SOURCE_DIR}")
+    else()
+        message(WARNING "MobileSharing > MOBILESHARING_ANDROID_PACKAGE_SOURCE_DIR is not set, "
+                        "please provide the same path than your application's QT_ANDROID_PACKAGE_SOURCE_DIR before add_subdirectory(MobileSharing).")
+    endif()
+endif()
+
+################################################################################

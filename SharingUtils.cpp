@@ -64,13 +64,6 @@ ShareUtils::ShareUtils(QObject *parent) : QObject(parent)
 
 /* ************************************************************************** */
 
-void ShareUtils::registerQML()
-{
-    //
-}
-
-/* ************************************************************************** */
-
 void ShareUtils::checkPendingIntents(const QString &workingDirPath)
 {
     mPlatformShareUtils->checkPendingIntents(workingDirPath);

@@ -43,6 +43,7 @@
 #define SHARINGUTILS_H
 /* ************************************************************************** */
 
+#include <QtQml/qqmlregistration.h>
 #include <QObject>
 #include <QString>
 #include <QMimeDatabase>
@@ -105,6 +106,7 @@ private:
 class ShareUtils : public QObject
 {
     Q_OBJECT
+    QML_NAMED_ELEMENT(ShareUtils)
 
     PlatformShareUtils *mPlatformShareUtils = nullptr;
 
@@ -126,8 +128,6 @@ public slots:
 
 public:
     explicit ShareUtils(QObject *parent = nullptr);
-
-    static void registerQML();
 
     Q_INVOKABLE void checkPendingIntents(const QString &workingDirPath);
     Q_INVOKABLE bool checkMimeTypeView(const QString &mimeType);
