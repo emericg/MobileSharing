@@ -351,9 +351,7 @@ public class QShareUtils
         final Context context = m_activity;
         if (context == null) return false;
 
-        // using v4 support library create the Intent from ShareCompat
-        // Intent editIntent = new Intent();
-        Intent editIntent = ShareCompat.IntentBuilder.from(m_activity).getIntent();
+        Intent editIntent = new Intent();
         editIntent.setAction(Intent.ACTION_EDIT);
 
         File fileToShare = new File(filePath);
