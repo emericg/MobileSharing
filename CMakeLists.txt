@@ -59,6 +59,16 @@ target_include_directories(MobileSharing PUBLIC ${CMAKE_CURRENT_LIST_DIR})
 # On Android the module owns its Java sources and FileProvider resources.
 # We copy these files into QT_ANDROID_PACKAGE_SOURCE_DIR at configure time.
 if (ANDROID)
+    # If by any chance QT_ANDROID_PACKAGE_SOURCE_DIR exists as a variable (?) we use it
+    if (NOT DEFINED MOBILESHARING_ANDROID_PACKAGE_SOURCE_DIR AND DEFINED QT_ANDROID_PACKAGE_SOURCE_DIR)
+        set(MOBILESHARING_ANDROID_PACKAGE_SOURCE_DIR "${QT_ANDROID_PACKAGE_SOURCE_DIR}")
+    endif()
+
+    # If by any chance the directory "${CMAKE_SOURCE_DIR}/assets/android/" exists, we use it
+    if (NOT DEFINED MOBILESHARING_ANDROID_PACKAGE_SOURCE_DIR AND EXISTS "${CMAKE_SOURCE_DIR}/assets/android/")
+        set(MOBILESHARING_ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_SOURCE_DIR}/assets/android/")
+    endif()
+
     if (DEFINED MOBILESHARING_ANDROID_PACKAGE_SOURCE_DIR)
         file(COPY
             "${CMAKE_CURRENT_SOURCE_DIR}/android/src"
