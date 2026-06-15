@@ -73,8 +73,9 @@ MobileSharing::MobileSharing(QObject *parent) : QObject(parent)
     // Session-scoped: wipe the whole directory, at the earliest point before any file can be received or sent
     QDir(mWorkingDir).removeRecursively();
 
-    QDir().mkpath(mIncomingDir);
-    //Dir().mkpath(mOutgoingDir); // created on demand by the platform layer when a file is shared with move/copy
+    // Created on demand
+    //QDir().mkpath(mIncomingDir);
+    //QDir().mkpath(mOutgoingDir);
 
     // Self-drive incoming-intent processing so the host do not require a custom QGuiApplication subclass:
     // react to app-state changes, and also handle the case where the app is already active
@@ -152,6 +153,70 @@ void MobileSharing::editFile(const QString &filePath, const QString &title, cons
     mPlatformShareUtils->editFile(filePath, title, mimeType, requestId);
 }
 
+void MobileSharing::importFile(const QUrl &source)
+{
+    if (!source.isValid())
+    {
+        Q_EMIT shareError(0, QStringLiteral("Import: invalid source URL"));
+        return;
+    }
+
+    // A file picked through Qt's FileDialog is a URL we don't own yet:
+    // - a content:// URI on Android (Qt's content file engine lets QFile read these directly)
+    // - a file:// path elsewhere (desktop, iOS)
+    // Either way we stream it into incoming/ so the app ends up owning a real, readable
+    // file, surfaced through the same fileReceived() signal as a received share.
+    const QString srcPath = source.isLocalFile() ? source.toLocalFile() : source.toString();
+
+    QFile in(srcPath);
+    if (!in.open(QIODevice::ReadOnly))
+    {
+        Q_EMIT shareError(0, QStringLiteral("Import: cannot read %1").arg(srcPath));
+        return;
+    }
+
+    // Best-effort display name (Qt's content engine resolves DISPLAY_NAME for content:// URIs).
+    QString name = QFileInfo(in).fileName();
+    if (name.isEmpty()) name = source.fileName();
+    if (name.isEmpty()) name = QStringLiteral("imported_%1").arg(QDateTime::currentMSecsSinceEpoch());
+
+    QDir().mkpath(mIncomingDir);
+    QString dest = mIncomingDir + '/' + name;
+    if (QFileInfo::exists(dest))
+    {
+        // Don't clobber a previous file of the same name this session.
+        dest = mIncomingDir + '/' + QString::number(QDateTime::currentMSecsSinceEpoch()) + '_' + name;
+    }
+
+    QFile out(dest);
+    if (!out.open(QIODevice::WriteOnly))
+    {
+        in.close();
+        Q_EMIT shareError(0, QStringLiteral("Import: cannot write %1").arg(dest));
+        return;
+    }
+
+    // Manual copy // QFile::copy() isn't implemented on content:// URIs
+    qint64 n;
+    char buffer[8192];
+    while ((n = in.read(buffer, sizeof(buffer))) > 0)
+    {
+        if (out.write(buffer, n) != n)
+        {
+            in.close();
+            out.close();
+            QFile::remove(dest);
+            Q_EMIT shareError(0, QStringLiteral("Import: write failed for %1").arg(dest));
+            return;
+        }
+    }
+
+    in.close();
+    out.close();
+
+    Q_EMIT fileReceived(dest);
+}
+
 const QMimeDatabase &MobileSharing::getMimeDatabase() const
 {
     return mPlatformShareUtils->getMimeDatabase();
@@ -188,6 +253,8 @@ void MobileSharing::onFileReceived(const QString &filePath)
     // - iOS delivers it into Documents/Inbox, so move it into our cache dir.
 
     QString path = filePath;
+
+    QDir().mkpath(mIncomingDir);
     QDir incomingDir(mIncomingDir);
     const QString canonicalIncoming = incomingDir.canonicalPath();
 

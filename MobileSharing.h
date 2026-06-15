@@ -154,6 +154,9 @@ public:
 
     //! Explicitely reject an incoming file: delete the cached copy (only within our cache subdir).
     Q_INVOKABLE void discardFileReceived(const QString &filePath);
+
+    Q_INVOKABLE void importFile(const QUrl &source);
+
     Q_INVOKABLE void sendText(const QString &text, const QString &subject, const QUrl &url);
 
     Q_INVOKABLE void sendFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId, bool move = false);
