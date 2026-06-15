@@ -57,6 +57,7 @@ target_include_directories(MobileSharing PUBLIC ${CMAKE_CURRENT_LIST_DIR})
 
 # On Android the module owns its Java sources and FileProvider resources.
 # We copy these files into QT_ANDROID_PACKAGE_SOURCE_DIR at configure time.
+# We do not overwrite the filepaths.xml, because the parent application is free to use its own.
 if (ANDROID)
     # If by any chance QT_ANDROID_PACKAGE_SOURCE_DIR exists as a variable (?) we use it
     if (NOT DEFINED MOBILESHARING_ANDROID_PACKAGE_SOURCE_DIR AND DEFINED QT_ANDROID_PACKAGE_SOURCE_DIR)
@@ -64,15 +65,19 @@ if (ANDROID)
     endif()
 
     # If by any chance the directory "${CMAKE_SOURCE_DIR}/assets/android/" exists, we use it
-    if (NOT DEFINED MOBILESHARING_ANDROID_PACKAGE_SOURCE_DIR AND EXISTS "${CMAKE_SOURCE_DIR}/assets/android/")
-        set(MOBILESHARING_ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_SOURCE_DIR}/assets/android/")
+    if (NOT DEFINED MOBILESHARING_ANDROID_PACKAGE_SOURCE_DIR AND EXISTS "${CMAKE_SOURCE_DIR}/assets/android")
+        set(MOBILESHARING_ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_SOURCE_DIR}/assets/android")
     endif()
 
     if (DEFINED MOBILESHARING_ANDROID_PACKAGE_SOURCE_DIR)
-        file(COPY
-            "${CMAKE_CURRENT_SOURCE_DIR}/android/src"
-            "${CMAKE_CURRENT_SOURCE_DIR}/android/res"
+        file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/android/src"
+             DESTINATION "${MOBILESHARING_ANDROID_PACKAGE_SOURCE_DIR}")
+
+        if (NOT EXISTS "${MOBILESHARING_ANDROID_PACKAGE_SOURCE_DIR}/res/xml/filepaths.xml")
+            file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/android/res"
             DESTINATION "${MOBILESHARING_ANDROID_PACKAGE_SOURCE_DIR}")
+        endif()
+
         message(STATUS "MobileSharing > Deployed Android Java/res into ${MOBILESHARING_ANDROID_PACKAGE_SOURCE_DIR}")
     else()
         message(WARNING "MobileSharing > MOBILESHARING_ANDROID_PACKAGE_SOURCE_DIR is not set, "
