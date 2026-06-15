@@ -1,20 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    FileProvider paths for MobileSharing. These reference the app's own sandbox
-    directories only (no applicationId here - the authority lives in the manifest
-    <provider> and is resolved at runtime). Generic: ship as-is, nothing to edit.
+  FileProvider path for MobileSharing cache directory.
+  These paths reference the app's own sandbox directories only.
+
+  Other paths can be used, for instance:
+    <files-path name="files" path="." />
+    <cache-path name="cache" path="." />
+    <external-files-path name="external_files" path="." />
+    <external-cache-path name="external_cache" path="." />
 -->
 <paths>
-    <files-path
-        name="files"
-        path="." />
-    <cache-path
-        name="cache"
-        path="." />
-    <external-files-path
-        name="external_files"
-        path="." />
-    <external-cache-path
-        name="external_cache"
-        path="." />
+  <cache-path name="MobileSharing cache folder" path="MobileSharing/" />
 </paths>

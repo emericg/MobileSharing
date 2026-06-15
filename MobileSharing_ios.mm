@@ -79,8 +79,11 @@ void IosShareUtils::sendText(const QString &text, const QString &subject, const 
     [qtUIViewController presentViewController:activityController animated:YES completion:nil];
 }
 
-void IosShareUtils::sendFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId) {
-#pragma unused (title, mimeType)
+void IosShareUtils::sendFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId, bool move) {
+#pragma unused (title, mimeType, move)
+    // 'move' is a no-op on iOS: any file in the app sandbox is shareable as-is via
+    // UIDocumentInteractionController (no FileProvider equivalent). Throwaway-file
+    // cleanup on iOS is left to the app (e.g. delete after onShareFinished).
 
     NSString *nsFilePath = filePath.toNSString();
     NSURL *nsFileUrl = [NSURL fileURLWithPath:nsFilePath];
@@ -115,13 +118,13 @@ void IosShareUtils::sendFile(const QString &filePath, const QString &title, cons
 void IosShareUtils::viewFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId) {
 #pragma unused (title, mimeType)
 
-    sendFile(filePath, title, mimeType, requestId);
+    sendFile(filePath, title, mimeType, requestId, false);
 }
 
 void IosShareUtils::editFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId) {
 #pragma unused (title, mimeType)
 
-    sendFile(filePath, title, mimeType, requestId);
+    sendFile(filePath, title, mimeType, requestId, false);
 }
 
 /* ************************************************************************** */
@@ -137,11 +140,11 @@ void IosShareUtils::handleFileUrlReceived(const QUrl &url)
 {
     QString incomingUrl = url.toString();
     if (incomingUrl.isEmpty()) {
-        qWarning() << "setFileUrlReceived: we got an empty URL";
+        qWarning() << "handleFileUrlReceived: we got an empty URL";
         emit shareError(0, "Empty URL received");
         return;
     }
-    qDebug() << "IosShareUtils setFileUrlReceived: we got the File URL from iOS: " << incomingUrl;
+    qDebug() << "IosShareUtils handleFileUrlReceived: we got the File URL from iOS: " << incomingUrl;
     QString myUrl;
     if (incomingUrl.startsWith("file://")) {
         myUrl = incomingUrl.right(incomingUrl.length()-7);
@@ -150,12 +153,12 @@ void IosShareUtils::handleFileUrlReceived(const QUrl &url)
         myUrl = incomingUrl;
     }
 
-    // check if File exists
+    // check if File exists (iOS delivers it into the app's Inbox, already owned)
     QFileInfo fileInfo = QFileInfo(myUrl);
     if (fileInfo.exists()) {
-        emit fileUrlReceived(myUrl);
+        emit fileReceived(myUrl);
     } else {
-        qDebug() << "setFileUrlReceived: FILE does NOT exist ";
+        qDebug() << "handleFileUrlReceived: FILE does NOT exist ";
         emit shareError(0, QString("File does not exist: %1").arg(myUrl));
     }
 }

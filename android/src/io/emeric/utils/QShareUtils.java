@@ -242,7 +242,14 @@ public class QShareUtils
 
         // (v2)
         File file = new File(filePath);
-        Uri fileUri = FileProvider.getUriForFile(context, context.getPackageName() + ".fileprovider", file);
+        Uri fileUri;
+        try {
+            fileUri = FileProvider.getUriForFile(context, context.getPackageName() + ".fileprovider", file);
+        } catch (IllegalArgumentException e) {
+            // path not under a filepaths.xml root (the C++ layer normally prevents this)
+            Log.e("QShareUtils", "sendFile: cannot be shared: " + filePath + " - " + e);
+            return false;
+        }
 
         Intent shareIntent = new Intent(Intent.ACTION_SEND);
         shareIntent.setDataAndType(fileUri, mimeType);
@@ -298,7 +305,13 @@ public class QShareUtils
         if (context == null) return false;
 
         File file = new File(filePath);
-        Uri fileUri = FileProvider.getUriForFile(context, context.getPackageName() + ".fileprovider", file);
+        Uri fileUri;
+        try {
+            fileUri = FileProvider.getUriForFile(context, context.getPackageName() + ".fileprovider", file);
+        } catch (IllegalArgumentException e) {
+            Log.e("QShareUtils", "viewFile: cannot be shared: " + filePath + " - " + e);
+            return false;
+        }
 
         Intent shareIntent = new Intent(Intent.ACTION_VIEW);
         shareIntent.setDataAndType(fileUri, mimeType);
@@ -406,8 +419,8 @@ public class QShareUtils
         return null;
     }
 
-    // Copy the content behind a content:// Uri into workingDirPath via an
-    // InputStream (fallback when the Uri cannot be resolved to a real file path).
+    // Copy the content behind a file:// or content:// Uri into workingDirPath via an
+    // InputStream, so the app always gets a real, readable file it owns.
     // Returns the absolute path of the written file, or null on failure.
     public static String createFile(ContentResolver cR, Uri uri, String workingDirPath) {
         if (workingDirPath == null || workingDirPath.isEmpty()) {
@@ -415,9 +428,13 @@ public class QShareUtils
             return null;
         }
 
+        // Best display name: ContentResolver (content://), else the Uri's last
+        // segment (file://), else a timestamped name keeping the mime extension.
         String name = getContentName(cR, uri);
         if (name == null || name.isEmpty()) {
-            // fallback name, try to keep an extension from the mime type
+            name = uri.getLastPathSegment();
+        }
+        if (name == null || name.isEmpty() || name.contains("/")) {
             String ext = MimeTypeMap.getSingleton().getExtensionFromMimeType(cR.getType(uri));
             name = "shared_" + System.currentTimeMillis() + (ext != null ? "." + ext : "");
         }

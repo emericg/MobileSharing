@@ -52,6 +52,9 @@
 
 /* ************************************************************************** */
 
+/*!
+ * \brief The PlatformShareUtils class
+ */
 class PlatformShareUtils : public QObject
 {
     Q_OBJECT
@@ -61,8 +64,7 @@ signals:
     void shareFinished(int requestCode);
     void shareNoAppAvailable(int requestCode);
     void shareError(int requestCode, QString message);
-    void fileUrlReceived(QString url);
-    void fileReceivedAndSaved(QString url);
+    void fileReceived(QString filePath);
 
 public:
     PlatformShareUtils(QObject *parent = nullptr) : QObject(parent) { };
@@ -83,8 +85,8 @@ public:
     virtual void sendText(const QString &text, const QString &subject, const QUrl &url) {
         qDebug() << text << subject << url.url();
     }
-    virtual void sendFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId) {
-        qDebug() << filePath << " - " << title << "requestId: " << requestId << " - " << mimeType;
+    virtual void sendFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId, bool move) {
+        qDebug() << filePath << " - " << title << "requestId: " << requestId << " - " << mimeType << " - " << move;
     }
     virtual void viewFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId) {
         qDebug() << filePath << " - " << title << "requestId: " << requestId << " - " << mimeType;
@@ -103,6 +105,9 @@ private:
 
 /* ************************************************************************** */
 
+/*!
+ * \brief The MobileSharing class
+ */
 class MobileSharing : public QObject
 {
     Q_OBJECT
@@ -111,9 +116,11 @@ class MobileSharing : public QObject
     PlatformShareUtils *mPlatformShareUtils = nullptr;
     bool mPendingIntentsChecked = false;
 
+    QString mWorkingDir;  //!< module-owned cache root (cache/MobileSharing), wiped at startup
+    QString mIncomingDir; //!< subdir where received files are copied (cache/MobileSharing/incoming)
+    QString mOutgoingDir; //!< subdir where sending files are copied (cache/MobileSharing/outgoing)
+
 private slots:
-    // Self-driven: process a pending incoming share intent the first time the
-    // app becomes active, so the host doesn't need a custom application class.
     void onApplicationStateChanged(Qt::ApplicationState state);
 
 signals:
@@ -121,28 +128,35 @@ signals:
     void shareFinished(int requestCode);
     void shareNoAppAvailable(int requestCode);
     void shareError(int requestCode, QString message);
-    void fileUrlReceived(QString url);
-    void fileReceivedAndSaved(QString url);
+
+    /*!
+     * \brief fileReceived signal, emitted once per incoming file.
+     * \param filePath: The path to the file received.
+     *
+     * The path always points to a real, readable file the app owns (a copy in the module's cache subdir).
+     * The cache will be deleted next time the app starts, so copy/move it into your own storage if you want to keep it.
+     */
+    void fileReceived(const QString &filePath);
 
 public slots:
     void onShareEditDone(int requestCode);
     void onShareFinished(int requestCode);
     void onShareNoAppAvailable(int requestCode);
     void onShareError(int requestCode, const QString &message);
-    void onFileUrlReceived(const QString &url);
-    void onFileReceivedAndSaved(const QString &url);
+    void onFileReceived(const QString &filePath);
 
 public:
     explicit MobileSharing(QObject *parent = nullptr);
 
-    Q_INVOKABLE void checkPendingIntents(const QString &workingDirPath);
     Q_INVOKABLE bool checkMimeTypeView(const QString &mimeType);
     Q_INVOKABLE bool checkMimeTypeEdit(const QString &mimeType);
     const QMimeDatabase &getMimeDatabase() const;
 
+    //! Explicitely reject an incoming file: delete the cached copy (only within our cache subdir).
+    Q_INVOKABLE void discardFileReceived(const QString &filePath);
     Q_INVOKABLE void sendText(const QString &text, const QString &subject, const QUrl &url);
 
-    Q_INVOKABLE void sendFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId);
+    Q_INVOKABLE void sendFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId, bool move = false);
     Q_INVOKABLE void viewFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId);
     Q_INVOKABLE void editFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId);
 };

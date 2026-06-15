@@ -32,6 +32,9 @@
 #include <QGuiApplication>
 #include <QStandardPaths>
 #include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QDateTime>
 
 /* ************************************************************************** */
 
@@ -57,20 +60,26 @@ MobileSharing::MobileSharing(QObject *parent) : QObject(parent)
     connectResult = connect(mPlatformShareUtils, &PlatformShareUtils::shareError, this, &MobileSharing::onShareError);
     Q_ASSERT(connectResult);
 
-    connectResult = connect(mPlatformShareUtils, &PlatformShareUtils::fileUrlReceived, this, &MobileSharing::onFileUrlReceived);
-    Q_ASSERT(connectResult);
-
-    connectResult = connect(mPlatformShareUtils, &PlatformShareUtils::fileReceivedAndSaved, this, &MobileSharing::onFileReceivedAndSaved);
+    connectResult = connect(mPlatformShareUtils, &PlatformShareUtils::fileReceived, this, &MobileSharing::onFileReceived);
     Q_ASSERT(connectResult);
 
     Q_UNUSED(connectResult)
 
-    // Self-drive incoming-intent processing so the host needs no custom QGuiApplication
-    // subclass: react to app-state changes, and also handle the case where the app is
-    // already active by the time this object is created (deferred so QML signal handlers
-    // are wired up first).
-    connect(qApp, &QGuiApplication::applicationStateChanged,
-            this, &MobileSharing::onApplicationStateChanged);
+    // Module-owned temporary cache directory (cache/MobileSharing) with incoming/ and outgoing/ subdirs.
+    mWorkingDir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + "/MobileSharing";
+    mIncomingDir = mWorkingDir + "/incoming";
+    mOutgoingDir = mWorkingDir + "/outgoing";
+
+    // Session-scoped: wipe the whole directory, at the earliest point before any file can be received or sent
+    QDir(mWorkingDir).removeRecursively();
+
+    QDir().mkpath(mIncomingDir);
+    //Dir().mkpath(mOutgoingDir); // created on demand by the platform layer when a file is shared with move/copy
+
+    // Self-drive incoming-intent processing so the host do not require a custom QGuiApplication subclass:
+    // react to app-state changes, and also handle the case where the app is already active
+    // by the time this object is created (deferred so QML signal handlers are wired up first).
+    connect(qApp, &QGuiApplication::applicationStateChanged, this, &MobileSharing::onApplicationStateChanged);
 
     if (qApp->applicationState() == Qt::ApplicationActive)
     {
@@ -86,21 +95,32 @@ void MobileSharing::onApplicationStateChanged(Qt::ApplicationState state)
     if (state == Qt::ApplicationActive && !mPendingIntentsChecked)
     {
         mPendingIntentsChecked = true;
-
-        // Working dir for received files copied via InputStream (content:// fallback)
-        QString workingDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
-        if (!workingDir.isEmpty()) QDir().mkpath(workingDir);
-
-        mPlatformShareUtils->checkPendingIntents(workingDir);
+        mPlatformShareUtils->checkPendingIntents(mIncomingDir);
     }
 }
 
 /* ************************************************************************** */
 
-void MobileSharing::checkPendingIntents(const QString &workingDirPath)
+void MobileSharing::discardFileReceived(const QString &filePath)
 {
-    mPlatformShareUtils->checkPendingIntents(workingDirPath);
+    QString canonicalDir = QDir(mWorkingDir).canonicalPath();
+    QString canonicalFile = QFileInfo(filePath).canonicalFilePath();
+
+    // Only allow deleting files inside our own cache dir
+    if (!canonicalDir.isEmpty() && canonicalFile.startsWith(canonicalDir + '/'))
+    {
+        if (!QFile::remove(canonicalFile))
+        {
+            qWarning() << "discardFileReceived() failed to remove" << canonicalFile;
+        }
+    }
+    else
+    {
+        qWarning() << "discardFileReceived() refusing to delete outside cache dir:" << filePath;
+    }
 }
+
+/* ************************************************************************** */
 
 bool MobileSharing::checkMimeTypeView(const QString &mimeType)
 {
@@ -117,9 +137,9 @@ void MobileSharing::sendText(const QString &text, const QString &subject, const 
     mPlatformShareUtils->sendText(text, subject, url);
 }
 
-void MobileSharing::sendFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId)
+void MobileSharing::sendFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId, bool move)
 {
-    mPlatformShareUtils->sendFile(filePath, title, mimeType, requestId);
+    mPlatformShareUtils->sendFile(filePath, title, mimeType, requestId, move);
 }
 
 void MobileSharing::viewFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId)
@@ -159,14 +179,39 @@ void MobileSharing::onShareError(int requestCode, const QString &message)
     Q_EMIT shareError(requestCode, message);
 }
 
-void MobileSharing::onFileUrlReceived(const QString &url)
-{
-    Q_EMIT fileUrlReceived(url);
-}
+/* ************************************************************************** */
 
-void MobileSharing::onFileReceivedAndSaved(const QString &url)
+void MobileSharing::onFileReceived(const QString &filePath)
 {
-    Q_EMIT fileReceivedAndSaved(url);
+    // Every received path is a file the application owns inside our cache dir.
+    // - Android's platform layer already copied it there, so this is a no-op.
+    // - iOS delivers it into Documents/Inbox, so move it into our cache dir.
+
+    QString path = filePath;
+    QDir incomingDir(mIncomingDir);
+    const QString canonicalIncoming = incomingDir.canonicalPath();
+
+    if (canonicalIncoming.isEmpty() || !QFileInfo(path).canonicalFilePath().startsWith(canonicalIncoming + '/'))
+    {
+        QString dest = incomingDir.filePath(QFileInfo(path).fileName());
+        if (QFileInfo::exists(dest))
+        {
+            // Avoid clobbering a previous file of the same name
+            dest = incomingDir.filePath(QString::number(QDateTime::currentMSecsSinceEpoch()) + '_' + QFileInfo(path).fileName());
+        }
+
+        // Move it in our incoming folder ('deleting' the OS-provided original, e.g. the iOS Inbox copy).
+        if (QFile::rename(path, dest))
+        {
+            path = dest;
+        }
+        else
+        {
+            qWarning() << "onFileReceived() failed to move into shared cache dir, emitting original:" << path;
+        }
+    }
+
+    Q_EMIT fileReceived(path);
 }
 
 /* ************************************************************************** */

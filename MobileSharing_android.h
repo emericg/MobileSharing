@@ -45,7 +45,22 @@ class AndroidShareUtils : public PlatformShareUtils, public QAndroidActivityResu
 
     void processActivityResult(int requestCode, int resultCode);
 
-    QString getExternalFilesDirPath() const;
+    /*!
+     * \brief Return a path that FileProvider can serve (one under an exposed sandbox dir)
+     * \param filePath: The path of the file we want to share.
+     * \param move: Do we want to copy or to move that file?
+     * \return If \a filePath already qualifies it is returned as-is (unless \a move);
+     *         otherwise the file is copied (or moved, deleting the original) into the
+     *         session-wiped outgoing dir. Returns an empty string on failure.
+     */
+    QString ensureShareableFile(const QString &filePath, bool move);
+
+    /*!
+     * \brief isShareablePath()
+     * \param filePath: The path of the file we want to share.
+     * \return True if \a filePath lives under a dir declared in res/xml/filepaths.xml
+     */
+    bool isShareablePath(const QString &filePath) const;
 
 public:
     AndroidShareUtils(QObject *parent = nullptr);
@@ -56,7 +71,7 @@ public:
 
     void sendText(const QString &text, const QString &subject, const QUrl &url) override;
 
-    void sendFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId) override;
+    void sendFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId, bool move) override;
     void viewFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId) override;
     void editFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId) override;
 
@@ -66,9 +81,13 @@ public:
     void checkPendingIntents(const QString &workingDirPath) override;
 
 public slots:
-    void setFileUrlReceived(const QString &url);
-    void setFileReceivedAndSaved(const QString &url);
-    bool checkFileExits(const QString &url);
+    /*!
+     * \brief Called from JNI (QShareActivity) once the incoming file has been copied into our cache subdir.
+     * \param filePath: Path to our copy of the file we just receive.
+     *
+     * Emits fileReceived() if the file is valid.
+     */
+    void setFileReceived(const QString &filePath);
 };
 
 /* ************************************************************************** */

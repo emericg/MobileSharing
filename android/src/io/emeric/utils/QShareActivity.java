@@ -37,20 +37,15 @@ import android.net.Uri;
 import android.util.Log;
 import android.content.Intent;
 import android.content.ContentResolver;
-import android.webkit.MimeTypeMap;
 
 public class QShareActivity extends QtActivity
 {
     // native - must be implemented in Cpp via JNI
     // (registered from C++ via QJniEnvironment::registerNativeMethods, see MobileSharing_android.cpp)
-    // 'file' scheme or resolved from 'content' scheme:
-    public static native void setFileUrlReceived(String url);
-    // InputStream from 'content' scheme:
-    public static native void setFileReceivedAndSaved(String url);
-    //
+    // an incoming file, already copied into our cache dir:
+    public static native void setFileReceived(String filePath);
+    // result of an outgoing share started with startActivityForResult:
     public static native void fireActivityResult(int requestCode, int resultCode);
-    //
-    public static native boolean checkFileExits(String url);
 
     public static boolean isIntentPending;
     public static boolean isInitialized;
@@ -151,7 +146,6 @@ public class QShareActivity extends QtActivity
         Intent intent = getIntent();
 
         Uri intentUri;
-        String intentScheme;
         String intentAction;
         // we are listening to android.intent.action.SEND or VIEW (see Manifest)
         if (intent.getAction().equals("android.intent.action.VIEW")) {
@@ -177,65 +171,15 @@ public class QShareActivity extends QtActivity
 
         Log.d("QShareActivity Intent URI:", intentUri.toString());
 
-        // content or file
-        intentScheme = intentUri.getScheme();
-        if (intentScheme == null) {
-            Log.d("QShareActivity", " processIntent() Intent URI: is null");
-            return;
-        }
-        if (intentScheme.equals("file")) {
-            // URI as encoded string
-            Log.d("QShareActivity", " processIntent() File URI: " + intentUri.toString());
-            setFileUrlReceived(intentUri.toString());
-            // we are done Qt can deal with file scheme
-            return;
-        }
-        if (!intentScheme.equals("content")) {
-            Log.d("QShareActivity", " processIntent() URI unknown scheme: " + intentScheme);
-            return;
-        }
-
-        // ok - it's a content scheme URI
-        // we will try to resolve the Path to a File URI
-        // if this won't work or if the File cannot be opened,
-        // we'll try to copy the file into our App working dir via InputStream
-        // hopefully in most cases PathResolver will give a path
-
-        // you need the file extension, MimeType or Name from ContentResolver ?
-        // here's HowTo get it:
-        Log.d("QShareActivity", " processIntent() Intent Content URI: " + intentUri.toString());
+        // We always copy the incoming content (file:// or content://) into our own
+        // cache dir via an InputStream, so the app always gets a real, readable file
+        // it owns. ContentResolver.openInputStream() handles both schemes.
         ContentResolver cR = this.getContentResolver();
-        MimeTypeMap mime = MimeTypeMap.getSingleton();
-        String fileExtension = mime.getExtensionFromMimeType(cR.getType(intentUri));
-        Log.d("QShareActivity", " processIntent() Intent extension: " + fileExtension);
-        String mimeType = cR.getType(intentUri);
-        Log.d("QShareActivity", " processIntent() Intent MimeType: " + mimeType);
-        String name = QShareUtils.getContentName(cR, intentUri);
-        if (name != null) {
-            Log.d("QShareUtils", " processIntent() Intent Name: " + name);
-        } else {
-            Log.d("QShareUtils", " processIntent() Intent Name is NULL");
-        }
-        String filePath = QSharePathResolver.getRealPathFromURI(this, intentUri);
+        String filePath = QShareUtils.createFile(cR, intentUri, workingDirPath);
         if (filePath == null) {
-            Log.d("QShareUtils", " processIntent() filePath is NULL");
-        } else {
-            Log.d("QShareUtils", filePath);
-            // to be safe check if this File Url really can be opened by Qt
-            // there were problems with MS office apps on Android 7
-            if (checkFileExits(filePath)) {
-                setFileUrlReceived(filePath);
-                // we are done Qt can deal with file scheme
-                return;
-            }
-        }
-
-        // trying the InputStream way:
-        filePath = QShareUtils.createFile(cR, intentUri, workingDirPath);
-        if (filePath == null) {
-            Log.d("QShareUtils", " processIntent() Intent FilePath: is NULL");
+            Log.d("QShareActivity", " processIntent() could not copy incoming file");
             return;
         }
-        setFileReceivedAndSaved(filePath);
+        setFileReceived(filePath);
     }
 }

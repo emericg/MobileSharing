@@ -78,13 +78,12 @@ You'll need to add the file formats that your app can accept in the `Info.plist`
 The module has its own Android Java sources (`io.emeric.utils`) and FileProvider `res/xml/filepaths.xml` files.  
 These resources are **copied into your own application android source dir** automatically at configure time.  
 
-You can add these copied files to your `.gitignore`:
+You can add these copied files (especially the java files, because you may choose to customize the FileProvider paths) to your `.gitignore`:
 
 ```
-# MobileSharing module: Android resources are auto-copied from thirdparty/MobileSharing/android/
+# MobileSharing module resources (from thirdparty/MobileSharing/android/)
 assets/android/src/io/emeric/utils/QShareActivity.java
 assets/android/src/io/emeric/utils/QShareUtils.java
-assets/android/res/xml/filepaths.xml
 ```
 
 Like in many Qt / Android app, you only need to:
@@ -113,16 +112,9 @@ If your app already needs a custom activity, have it **extend `io.emeric.utils.Q
 Edit your manifest's activity section:
 
 ```xml
-<activity android:name="io.emeric.utils.QShareActivity"
-          android:launchMode="singleTask" android:exported="true"
-          ... >
+<activity android:name="io.emeric.utils.QShareActivity" android:launchMode="singleTask" ... > <!-- Change name and launchMode-->
 
-    <intent-filter>
-        <action android:name="android.intent.action.MAIN" />
-        <category android:name="android.intent.category.LAUNCHER" />
-    </intent-filter>
-
-    <!-- Handle incoming content shared into this app, adjust mimeType to your own needs -->
+    <!-- Handle incoming content shared into this app (adjust mimeType to your own needs) -->
     <intent-filter>
         <action android:name="android.intent.action.SEND" />
         <category android:name="android.intent.category.DEFAULT" />
@@ -166,29 +158,23 @@ To **send** content, add the FileProvider in your manifest application section:
 </manifest>
 ```
 
-The module should have copied a `/res/xml/filepaths.xml` file in you Android directory:
+The module copies its own `/res/xml/filepaths.xml` into your Android directory. It is deliberately minimal.  
+The provider can only serve files from the module's own MobileSharing subdir, not the rest of your app's storage:
 
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  FileProvider path for MobileSharing cache directory.
+  These paths reference the app's own sandbox directories only.
+
+  Other paths can be used, for instance:
+    <files-path name="files" path="." />
+    <cache-path name="cache" path="." />
+    <external-files-path name="external_files" path="." />
+    <external-cache-path name="external_cache" path="." />
+-->
 <paths>
-    <external-path
-        name="external"
-        path="." />
-    <external-files-path
-        name="external_files"
-        path="." />
-    <cache-path
-        name="cache"
-        path="." />
-    <external-cache-path
-        name="external_cache"
-        path="." />
-    <files-path
-        name="files"
-        path="." />
-    <files-path
-        name="export"
-        path="export/" />
+  <cache-path name="MobileSharing cache folder" path="MobileSharing/" />
 </paths>
 ```
 
@@ -204,40 +190,83 @@ Place **exactly one** instance:
 import MobileSharing
 
 Window {
-    
+
     MobileSharing {
         id: mobileSharing
-    
+
         // Outgoing functions
         //mobileSharing.sendText("Hello", "Subject", "https://github.com/emericg/MobileSharing")
         //mobileSharing.sendFile("/path/to/file.pdf", "My file", "application/pdf", 42)
-    
+
         // Outgoing status
         onShareFinished: (requestCode) => {
-            console.log("MobileSharing::onShareFinished() done:", requestCode)
+            console.log("MobileSharing::onShareFinished(" + requestCode + ")")
         }
-        onShareNoAppAvailable: (requestCode) =>{
-            console.log("MobileSharing::onShareNoAppAvailable() error:", requestCode)
+        onShareNoAppAvailable: (requestCode) => {
+            console.log("MobileSharing::onShareNoAppAvailable(" + requestCode + ")")
         }
         onShareError: (requestCode, message) => {
-            console.log("MobileSharing::onShareNoAppAvailable() error:", requestCode, message)
+            console.log("MobileSharing::onShareError(" + requestCode + ") " + message)
         }
-        
-        // Incoming files: one signal, the path is always a real file you own
+
+        // Incoming file
         onFileReceived: (path) => {
-            console.log("MobileSharing::onFileReceived()", path)
-        }
+            console.log("MobileSharing::onFileReceived(" + path + ")")
+            appWindow.receivedPath = path
+            appWindow.scanCache()
         }
     }
+}
 ```
 
 ### Sending files
 
-> TODO
+```qml
+sendFile(path, title, mimeType, requestId, move = false)
+```
+
+- Accepts **any** path.
+- If the file already lives in the module's shared cache area (`<cache>/MobileSharing/`, like a file you received or created there), it is shared in place.
+- Otherwise (any other location — your `files/`, external storage, ...) the module first **copies** it into its `outgoing/` dir so Android's `FileProvider` can serve it.
+  The provider is scoped to `<cache>/MobileSharing/` only, so it can never expose the rest of your app's storage.
+- Pass **`move: true`** for throwaway files you generated only to share: the file is
+  *moved* into the outgoing dir and the original deleted — no leftover duplicate.
+
+```qml
+mobileSharing.sendFile(whateverExportPath, "My export", "application/pdf", 1, true)
+```
+
+Where the shared copy lives, and its lifecycle:
+
+|                       | Android                                               | iOS                                                       |
+|-----------------------|-------------------------------------------------------|-----------------------------------------------------------|
+| Needs a copy/move?    | Yes if the path isn't in `<cache>/MobileSharing/`     | No (any sandbox file is shareable as-is)                  |
+| Copy/move lands in    | `<cache>/MobileSharing/outgoing/<name>`               | N/A (`move` is a no-op; delete the file yourself after `onShareFinished` if needed) |
+| Lifecycle             | same cache root as incoming: **wiped on next launch** | — |
+
+`viewFile()` / `editFile()` get the same copy-if-needed safety net (no `move` option;
+`editFile` keeps editing the in-place file when it's already in the shared cache area).
 
 ### Receiving files
 
-> TODO
+When another app shares a file into yours, the OS hands you very different things on Android vs iOS.
+
+The module normalizes both into one contract: **`fileReceived(path)`** always gives you a real, readable file your app owns, living in the module's own cache subdir.
+
+What actually happens, and where the file physically lands:
+
+|                                           | Android                                                                                                       | iOS                                                                                             |
+|-------------------------------------------|---------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------|
+| What the OS gives you                     | A `content://` URI — a temporary read *handle*, not a file                                                    | The OS copies the file into `Documents/Inbox/` and gives you a `file://` URL                    |
+| What the module does                      | Copies the bytes (via `InputStream`) into its cache subdir                                                    | Moves the Inbox file into its cache subdir and deletes the Inbox original                       |
+| Where `path` points after `fileReceived`  | `<cache>/MobileSharing/incoming/<name>` <br> (`/data/user/0/<applicationId>/cache/MobileSharing/incoming/...`)| `<cache>/MobileSharing/incoming/<name>` <br>(`<App>/Library/Caches/MobileSharing/incoming/…`)   |
+| Persistence                               | Cache directory: OS-evictable, **wiped by the module on next launch**                                         | Same                                                                                            |
+| Backed up to iCloud/iTunes                | N/A                                                                                                           | no (Caches is excluded)                                                                         |
+
+Lifecycle (identical on both platforms):
+
+- The `<cache>/MobileSharing/` sub directory is **session-scoped**: the module wipes it once at startup, so a file received in one run is gone the next. Copy it out if you need it later.
+- To reject a file immediately, call `mobileSharing.discardFileReceived(path)` — it deletes the cached copy (and only touches files inside the module's own subdir).
 
 
 ## Caveats

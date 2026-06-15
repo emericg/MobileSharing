@@ -25,8 +25,10 @@
 
 #include <QUrl>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QDateTime>
+#include <QStandardPaths>
 
 #include <QCoreApplication>
 #include <QtCore/private/qandroidextras_p.h>
@@ -42,23 +44,18 @@ const static int RESULT_CANCELED = 0;
 AndroidShareUtils *AndroidShareUtils::mInstance = nullptr;
 
 /* ************************************************************************** */
-/* JNI bridge: implements the 'native' methods declared in QShareActivity.java.
- * Registered at runtime via QJniEnvironment::registerNativeMethods() (Qt already
- * owns JNI_OnLoad, so we must not define our own). Each call is forwarded to the
- * AndroidShareUtils singleton; cross-thread delivery to QML is handled by the
- * queued signal/slot connections in MobileSharing. */
+
+// JNI bridges: implements the 'native' methods declared in QShareActivity.java.
+// Registered at runtime via QJniEnvironment::registerNativeMethods() (Qt already owns JNI_OnLoad, so we must not define our own).
+// Each call is forwarded to the AndroidShareUtils singleton;
+// cross-thread delivery to QML is handled by the queued signal/slot connections in MobileSharing.
 
 extern "C"
 {
 
-static void jni_setFileUrlReceived(JNIEnv */*env*/, jobject /*thiz*/, jstring url)
+static void jni_setFileReceived(JNIEnv */*env*/, jobject /*thiz*/, jstring path)
 {
-    AndroidShareUtils::getInstance()->setFileUrlReceived(QJniObject(url).toString());
-}
-
-static void jni_setFileReceivedAndSaved(JNIEnv */*env*/, jobject /*thiz*/, jstring url)
-{
-    AndroidShareUtils::getInstance()->setFileReceivedAndSaved(QJniObject(url).toString());
+    AndroidShareUtils::getInstance()->setFileReceived(QJniObject(path).toString());
 }
 
 static void jni_fireActivityResult(JNIEnv */*env*/, jobject /*thiz*/, jint requestCode, jint resultCode)
@@ -66,20 +63,13 @@ static void jni_fireActivityResult(JNIEnv */*env*/, jobject /*thiz*/, jint reque
     AndroidShareUtils::getInstance()->onActivityResult(requestCode, resultCode);
 }
 
-static jboolean jni_checkFileExits(JNIEnv */*env*/, jobject /*thiz*/, jstring url)
-{
-    return AndroidShareUtils::getInstance()->checkFileExits(QJniObject(url).toString());
-}
-
 } // extern "C"
 
 static void registerNativeMethods()
 {
     const JNINativeMethod methods[] = {
-        {"setFileUrlReceived",      "(Ljava/lang/String;)V", reinterpret_cast<void *>(jni_setFileUrlReceived)},
-        {"setFileReceivedAndSaved", "(Ljava/lang/String;)V", reinterpret_cast<void *>(jni_setFileReceivedAndSaved)},
-        {"fireActivityResult",      "(II)V",                 reinterpret_cast<void *>(jni_fireActivityResult)},
-        {"checkFileExits",          "(Ljava/lang/String;)Z", reinterpret_cast<void *>(jni_checkFileExits)},
+        {"setFileReceived",    "(Ljava/lang/String;)V", reinterpret_cast<void *>(jni_setFileReceived)},
+        {"fireActivityResult", "(II)V",                 reinterpret_cast<void *>(jni_fireActivityResult)},
     };
 
     QJniEnvironment env;
@@ -94,7 +84,7 @@ static void registerNativeMethods()
 
 AndroidShareUtils::AndroidShareUtils(QObject *parent) : PlatformShareUtils(parent)
 {
-    // we need the instance for JNI Call
+    // We need the instance for JNI Call
     mInstance = this;
 
     // Bind the QShareActivity 'native' methods to our JNI bridge (once)
@@ -155,20 +145,52 @@ bool AndroidShareUtils::checkMimeTypeEdit(const QString &mimeType)
     return verified;
 }
 
-QString AndroidShareUtils::getExternalFilesDirPath() const
+bool AndroidShareUtils::isShareablePath(const QString &filePath) const
 {
-    QJniObject activity = QNativeInterface::QAndroidApplication::context();
-    if (activity.isValid())
-    {
-        QJniObject file = activity.callObjectMethod("getExternalFilesDir", "(Ljava/lang/String;)Ljava/io/File;", nullptr);
+    // FileProvider (res/xml/filepaths.xml) only exposes <cache>/MobileSharing by default,
+    // so a path is serviceable if it lives there (our incoming/ and outgoing/ dirs).
+    // Anything else should be copied into outgoing/ before sharing.
 
-        if (file.isValid())
-        {
-            QJniObject path = file.callObjectMethod("getAbsolutePath", "()Ljava/lang/String;");
-            return path.toString();
-        }
+    const QString abs = QFileInfo(filePath).absoluteFilePath();
+    const QString root = QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + "/MobileSharing";
+
+    return ((abs == root) || abs.startsWith(root + '/'));
+}
+
+QString AndroidShareUtils::ensureShareableFile(const QString &filePath, bool move)
+{
+    QFileInfo fi(filePath);
+    if (!fi.exists() || !fi.isFile())
+    {
+        qWarning() << "ensureShareableFile: not a file:" << filePath;
+        return QString();
     }
 
+    // Already serviceable and the caller keeps ownership -> use it in place.
+    if (!move && isShareablePath(fi.absoluteFilePath()))
+        return fi.absoluteFilePath();
+
+    const QString outDir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + "/MobileSharing/outgoing";
+    QDir().mkpath(outDir);
+
+    QString dest = outDir + '/' + fi.fileName();
+    if (QFileInfo::exists(dest))
+    {
+        // don't clobber another file of the same name this session
+        dest = outDir + '/' + QString::number(QDateTime::currentMSecsSinceEpoch()) + '_' + fi.fileName();
+    }
+
+    if (move)
+    {
+        if (QFile::rename(filePath, dest)) return dest; // fast path (same filesystem)
+        if (QFile::copy(filePath, dest)) { QFile::remove(filePath); return dest; } // cross-filesystem fallback
+    }
+    else
+    {
+        if (QFile::copy(filePath, dest)) return dest;
+    }
+
+    qWarning() << "ensureShareableFile: failed to" << (move ? "move" : "copy") << filePath << "->" << dest;
     return QString();
 }
 
@@ -179,10 +201,8 @@ void AndroidShareUtils::sendText(const QString &text, const QString &subject, co
     QJniObject jsText = QJniObject::fromString(text);
     QJniObject jsSubject = QJniObject::fromString(subject);
     QJniObject jsUrl = QJniObject::fromString(url.toString());
-    jboolean ok = QJniObject::callStaticMethod<jboolean>(
-                        "io/emeric/utils/QShareUtils",
-                        "sendText",
-                        "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z",
+    jboolean ok = QJniObject::callStaticMethod<jboolean>("io/emeric/utils/QShareUtils",
+                        "sendText", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z",
                         jsText.object<jstring>(), jsSubject.object<jstring>(), jsUrl.object<jstring>());
 
     if (!ok)
@@ -199,27 +219,17 @@ void AndroidShareUtils::sendText(const QString &text, const QString &subject, co
  * We need the Request Id and Result Id to control our workflow
  */
 void AndroidShareUtils::sendFile(const QString &filePath, const QString &title,
-                                 const QString &mimeType, const int &requestId)
+                                 const QString &mimeType, const int &requestId, bool move)
 {
     mIsEditMode = false;
-    QString newFilePath;
 
-    QString externalStorage = getExternalFilesDirPath();
-    if (!externalStorage.isEmpty())
-    {
-        if (!externalStorage.endsWith('/')) externalStorage += '/';
-
-        if (!filePath.contains(externalStorage))
-        {
-            // copy to external storage directory
-            newFilePath = externalStorage + QFileInfo(filePath).baseName();
-            QFile::copy(filePath, newFilePath);
-        }
-    }
-
+    // Make sure the path is something FileProvider can serve (copy/move into our outgoing dir if needed).
+    // 'move' just relocates throwaway files and deletes the original.
+    const QString newFilePath = ensureShareableFile(filePath, move);
     if (newFilePath.isEmpty())
     {
-        newFilePath = filePath;
+        Q_EMIT shareError(requestId, QString("Cannot share file: %1").arg(filePath));
+        return;
     }
 
     qDebug() << __FUNCTION__ << newFilePath;
@@ -250,7 +260,14 @@ void AndroidShareUtils::viewFile(const QString &filePath, const QString &title,
 {
     mIsEditMode = false;
 
-    QJniObject jsPath = QJniObject::fromString(filePath);
+    const QString newFilePath = ensureShareableFile(filePath, false);
+    if (newFilePath.isEmpty())
+    {
+        Q_EMIT shareError(requestId, QString("Cannot view file: %1").arg(filePath));
+        return;
+    }
+
+    QJniObject jsPath = QJniObject::fromString(newFilePath);
     QJniObject jsTitle = QJniObject::fromString(title);
     QJniObject jsMimeType = QJniObject::fromString(mimeType);
     jboolean ok = QJniObject::callStaticMethod<jboolean>("io/emeric/utils/QShareUtils", "viewFile",
@@ -274,13 +291,21 @@ void AndroidShareUtils::editFile(const QString &filePath, const QString &title,
                                  const QString &mimeType, const int &requestId)
 {
     mIsEditMode = true;
-    mCurrentFilePath = filePath;
+
+    const QString newFilePath = ensureShareableFile(filePath, false);
+    if (newFilePath.isEmpty())
+    {
+        Q_EMIT shareError(requestId, QString("Cannot edit file: %1").arg(filePath));
+        return;
+    }
+
+    mCurrentFilePath = newFilePath;
     QFileInfo fileInfo = QFileInfo(mCurrentFilePath);
 
     mLastModified = fileInfo.lastModified().toSecsSinceEpoch();
     qDebug() << "LAST MODIFIED: " << mLastModified;
 
-    QJniObject jsPath = QJniObject::fromString(filePath);
+    QJniObject jsPath = QJniObject::fromString(newFilePath);
     QJniObject jsTitle = QJniObject::fromString(title);
     QJniObject jsMimeType = QJniObject::fromString(mimeType);
 
@@ -360,6 +385,15 @@ void AndroidShareUtils::checkPendingIntents(const QString &workingDirPath)
     QJniObject activity = QNativeInterface::QAndroidApplication::context();
     if (activity.isValid())
     {
+        // Receiving requires QShareActivity (it overrides onNewIntent/onActivityResult and exposes checkPendingIntents).
+        QJniEnvironment env;
+        jclass shareActivityClass = env.findClass("io/emeric/utils/QShareActivity");
+        if (shareActivityClass && !env->IsInstanceOf(activity.object(), shareActivityClass))
+        {
+            //qWarning() << "MobileSharing: the running Activity is not a QShareActivity, incoming files will NOT be received."
+            return;
+        }
+
         // create a Java String for the Working Dir Path
         QJniObject jniWorkingDir = QJniObject::fromString(workingDirPath);
         if (!jniWorkingDir.isValid())
@@ -377,109 +411,28 @@ void AndroidShareUtils::checkPendingIntents(const QString &workingDirPath)
 
 /* ************************************************************************** */
 
-void AndroidShareUtils::setFileUrlReceived(const QString &url)
+void AndroidShareUtils::setFileReceived(const QString &filePath)
 {
-    if (url.isEmpty())
+    if (filePath.isEmpty())
     {
-        qWarning() << "setFileUrlReceived: we got an empty URL";
-        Q_EMIT shareError(0, "Empty URL received");
+        qWarning() << "setFileReceived: empty path received";
+        Q_EMIT shareError(0, "Empty path received");
         return;
     }
-    qDebug() << "AndroidShareUtils setFileUrlReceived: we got the File URL from JAVA: " << url;
-    QString myUrl;
-    if (url.startsWith("file://"))
+
+    // Java already copied the incoming content into our cache and hands us a plain filesystem path
+    // Strip the 'file://' prefix just in case...
+    QString path = filePath.startsWith("file://") ? filePath.mid(7) : filePath;
+
+    if (QFileInfo::exists(path))
     {
-        myUrl = url.right(url.length() - 7);
-        qDebug() << "QFile needs this URL: " << myUrl;
+        qDebug() << "setFileReceived:" << path;
+        Q_EMIT fileReceived(path);
     }
     else
     {
-        myUrl = url;
-    }
-
-    // check if File exists
-    QFileInfo fileInfo = QFileInfo(myUrl);
-    if (fileInfo.exists())
-    {
-        Q_EMIT fileUrlReceived(myUrl);
-    }
-    else
-    {
-        qDebug() << "setFileUrlReceived: FILE does NOT exist ";
-        Q_EMIT shareError(0, QString("File does not exist: %1").arg(myUrl));
-    }
-}
-
-/* ************************************************************************** */
-
-void AndroidShareUtils::setFileReceivedAndSaved(const QString &url)
-{
-    if (url.isEmpty())
-    {
-        qWarning() << "setFileReceivedAndSaved: we got an empty URL";
-        Q_EMIT shareError(0, "Empty URL received");
-        return;
-    }
-    qDebug() << "AndroidShareUtils setFileReceivedAndSaved: we got the File URL from JAVA: " << url;
-    QString myUrl;
-    if (url.startsWith("file://"))
-    {
-        myUrl = url.right(url.length() - 7);
-        qDebug() << "QFile needs this URL: " << myUrl;
-    }
-    else
-    {
-        myUrl = url;
-    }
-
-    // check if File exists
-    QFileInfo fileInfo = QFileInfo(myUrl);
-    if (fileInfo.exists())
-    {
-        Q_EMIT fileReceivedAndSaved(myUrl);
-    }
-    else
-    {
-        qDebug() << "setFileReceivedAndSaved: FILE does NOT exist ";
-        Q_EMIT shareError(0, QString("File does not exist: %1").arg(myUrl));
-    }
-}
-
-/* ************************************************************************** */
-
-// to be safe we check if a File Url from java really exists for Qt
-// if not on the Java side we'll try to read the content as Stream
-bool AndroidShareUtils::checkFileExits(const QString &url)
-{
-    if (url.isEmpty())
-    {
-        qWarning() << "checkFileExits: we got an empty URL";
-        Q_EMIT shareError(0, "Empty URL received");
-        return false;
-    }
-    qDebug() << "AndroidShareUtils checkFileExits: we got the File URL from JAVA: " << url;
-    QString myUrl;
-    if (url.startsWith("file://"))
-    {
-        myUrl = url.right(url.length()-7);
-        qDebug() << "QFile needs this URL: " << myUrl;
-    }
-    else
-    {
-        myUrl = url;
-    }
-
-    // check if File exists
-    QFileInfo fileInfo = QFileInfo(myUrl);
-    if (fileInfo.exists())
-    {
-        qDebug() << "Yep: the File exists for Qt";
-        return true;
-    }
-    else
-    {
-        qDebug() << "Uuups: FILE does NOT exist ";
-        return false;
+        qDebug() << "setFileReceived: file does NOT exist:" << path;
+        Q_EMIT shareError(0, QString("File does not exist: %1").arg(path));
     }
 }
 
