@@ -33,6 +33,9 @@ import android.content.*;
 
 import java.io.File;
 import java.lang.String;
+import java.util.Set;
+import java.util.HashSet;
+import java.util.Collections;
 import android.net.Uri;
 import android.util.Log;
 import android.content.Intent;
@@ -50,6 +53,11 @@ public class QShareActivity extends QtActivity
     public static boolean isIntentPending;
     public static boolean isInitialized;
     public static String workingDirPath;
+
+    // Request codes this module launched via startActivityForResult() (see QShareUtils).
+    // onActivityResult() only consumes results for these and lets Qt handle everything
+    // else (like its own QFileDialog), so we don't emit spurious share signals.
+    public static final Set<Integer> ownRequestCodes = Collections.synchronizedSet(new HashSet<Integer>());
 
     // Use a custom Chooser without providing own App as share target !
     // see QShareUtils.java createCustomChooserAndStartActivity()
@@ -91,6 +99,14 @@ public class QShareActivity extends QtActivity
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         Log.d("QShareActivity", " onActivityResult() requestCode: " + requestCode);
         super.onActivityResult(requestCode, resultCode, data);
+
+        // Only consume results for requests this module started. Everything else was
+        // already dispatched to Qt by super.onActivityResult() above (results from
+        // Qt's own QFileDialog/FileDialog); firing fireActivityResult() for those would
+        // emit spurious shareFinished()/shareError() signals
+        if (!ownRequestCodes.remove(requestCode)) {
+            return;
+        }
 
         // Check which request we're responding to
         if (resultCode == RESULT_OK) {

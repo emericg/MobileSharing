@@ -225,6 +225,10 @@ public class QShareUtils
         // Verify that the intent will resolve to an activity
         if (chooserIntent.resolveActivity(m_activity.getPackageManager()) != null) {
             if (requestId > 0) {
+                // Mark this code as ours so QShareActivity.onActivityResult() consumes its result (and ignores results from Qt's own dialogs)
+                if (m_activity instanceof QShareActivity) {
+                    QShareActivity.ownRequestCodes.add(requestId);
+                }
                 m_activity.startActivityForResult(chooserIntent, requestId);
             } else {
                 m_activity.startActivity(chooserIntent);
