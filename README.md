@@ -16,7 +16,7 @@ You can see it in action in the [MobileSharing demo](https://github.com/emericg/
 
 ## Features
 
-- Handle the Android/iOS specific features about sending / recieving files, links, text between apps
+- Handle the Android/iOS specific features about sending / recieving files, links, text between apps.
 - Minimal disruption on the host project using it! Build it, link it, use it.
 - Send files, texts, links...
 - Receive files, texts, links...
@@ -245,11 +245,32 @@ Window {
 > TODO
 
 
+## Inspirations
+
+This project is entirely based on [ekkesSHAREexample](https://github.com/ekke/ekkesSHAREexample) by ekke.
+
+This project is based on:
+- https://github.com/ekke/ekkesSHAREexample
+- https://www.qt.io/blog/2017/12/01/sharing-files-android-ios-qt-app
+- https://www.qt.io/blog/2018/01/16/sharing-files-android-ios-qt-app-part-2
+- https://www.qt.io/blog/2018/02/06/sharing-files-android-ios-qt-app-part-3
+- https://www.qt.io/blog/2018/11/06/sharing-files-android-ios-qt-app-part-4
+
+Also inspired by:
+- http://blog.lasconic.com/share-on-ios-and-android-using-qml/
+- https://github.com/lasconic/ShareUtils-QML
+
+Also inspired by:
+- https://www.androidcode.ninja/android-share-intent-example/
+- https://www.calligra.org/blogs/sharing-with-qt-on-android/
+- https://stackoverflow.com/questions/7156932/open-file-in-another-app
+- http://www.qtcentre.org/threads/58668-How-to-use-QAndroidJniObject-for-intent-setData
+- https://stackoverflow.com/questions/5734678/custom-filtering-of-intent-chooser-based-on-installed-android-package-name
+
+
 ## License
 
 This project is licensed under the MIT license, see LICENSE file for details.
-
-This project is based on [ekkesSHAREexample](https://github.com/ekke/ekkesSHAREexample) by ekke.
 
 > Copyright (c) 2017 Ekkehard Gentz (ekke)  
 
