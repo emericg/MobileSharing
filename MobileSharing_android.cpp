@@ -73,7 +73,7 @@ static void registerNativeMethods()
     };
 
     QJniEnvironment env;
-    if (!env.registerNativeMethods("io/emeric/utils/QShareActivity", methods,
+    if (!env.registerNativeMethods("io/emeric/mobilesharing/QShareActivity", methods,
                                    sizeof(methods) / sizeof(methods[0])))
     {
         qWarning() << "MobileSharing: failed to register QShareActivity native methods";
@@ -95,7 +95,7 @@ AndroidShareUtils::AndroidShareUtils(QObject *parent) : PlatformShareUtils(paren
         nativesRegistered = true;
     }
 
-    QJniObject jni = QJniObject("io/emeric/utils/QShareUtils");
+    QJniObject jni = QJniObject("io/emeric/mobilesharing/QShareUtils");
 
     if (jni.isValid())
     {
@@ -123,7 +123,7 @@ bool AndroidShareUtils::checkMimeTypeView(const QString &mimeType)
 {
     QJniObject jsMime = QJniObject::fromString(mimeType);
     jboolean verified = QJniObject::callStaticMethod<jboolean>(
-                            "io/emeric/utils/QShareUtils",
+                            "io/emeric/mobilesharing/QShareUtils",
                             "checkMimeTypeView",
                             "(Ljava/lang/String;)Z",
                             jsMime.object<jstring>());
@@ -136,7 +136,7 @@ bool AndroidShareUtils::checkMimeTypeEdit(const QString &mimeType)
 {
     QJniObject jsMime = QJniObject::fromString(mimeType);
     jboolean verified = QJniObject::callStaticMethod<jboolean>(
-                            "io/emeric/utils/QShareUtils",
+                            "io/emeric/mobilesharing/QShareUtils",
                             "checkMimeTypeEdit",
                             "(Ljava/lang/String;)Z",
                             jsMime.object<jstring>());
@@ -201,7 +201,7 @@ void AndroidShareUtils::sendText(const QString &text, const QString &subject, co
     QJniObject jsText = QJniObject::fromString(text);
     QJniObject jsSubject = QJniObject::fromString(subject);
     QJniObject jsUrl = QJniObject::fromString(url.toString());
-    jboolean ok = QJniObject::callStaticMethod<jboolean>("io/emeric/utils/QShareUtils",
+    jboolean ok = QJniObject::callStaticMethod<jboolean>("io/emeric/mobilesharing/QShareUtils",
                         "sendText", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z",
                         jsText.object<jstring>(), jsSubject.object<jstring>(), jsUrl.object<jstring>());
 
@@ -237,7 +237,7 @@ void AndroidShareUtils::sendFile(const QString &filePath, const QString &title,
     QJniObject jsPath = QJniObject::fromString(newFilePath);
     QJniObject jsTitle = QJniObject::fromString(title);
     QJniObject jsMimeType = QJniObject::fromString(mimeType);
-    jboolean ok = QJniObject::callStaticMethod<jboolean>("io/emeric/utils/QShareUtils", "sendFile",
+    jboolean ok = QJniObject::callStaticMethod<jboolean>("io/emeric/mobilesharing/QShareUtils", "sendFile",
                                                          "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;I)Z",
                                                          jsPath.object<jstring>(), jsTitle.object<jstring>(),
                                                          jsMimeType.object<jstring>(), requestId);
@@ -270,7 +270,7 @@ void AndroidShareUtils::viewFile(const QString &filePath, const QString &title,
     QJniObject jsPath = QJniObject::fromString(newFilePath);
     QJniObject jsTitle = QJniObject::fromString(title);
     QJniObject jsMimeType = QJniObject::fromString(mimeType);
-    jboolean ok = QJniObject::callStaticMethod<jboolean>("io/emeric/utils/QShareUtils", "viewFile",
+    jboolean ok = QJniObject::callStaticMethod<jboolean>("io/emeric/mobilesharing/QShareUtils", "viewFile",
                                                          "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;I)Z",
                                                          jsPath.object<jstring>(), jsTitle.object<jstring>(),
                                                          jsMimeType.object<jstring>(), requestId);
@@ -309,7 +309,7 @@ void AndroidShareUtils::editFile(const QString &filePath, const QString &title,
     QJniObject jsTitle = QJniObject::fromString(title);
     QJniObject jsMimeType = QJniObject::fromString(mimeType);
 
-    jboolean ok = QJniObject::callStaticMethod<jboolean>("io/emeric/utils/QShareUtils",
+    jboolean ok = QJniObject::callStaticMethod<jboolean>("io/emeric/mobilesharing/QShareUtils",
                                                          "editFile",
                                                          "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;I)Z",
                                                          jsPath.object<jstring>(), jsTitle.object<jstring>(),
@@ -387,7 +387,7 @@ void AndroidShareUtils::checkPendingIntents(const QString &workingDirPath)
     {
         // Receiving requires QShareActivity (it overrides onNewIntent/onActivityResult and exposes checkPendingIntents).
         QJniEnvironment env;
-        jclass shareActivityClass = env.findClass("io/emeric/utils/QShareActivity");
+        jclass shareActivityClass = env.findClass("io/emeric/mobilesharing/QShareActivity");
         if (shareActivityClass && !env->IsInstanceOf(activity.object(), shareActivityClass))
         {
             //qWarning() << "MobileSharing: the running Activity is not a QShareActivity, incoming files will NOT be received."

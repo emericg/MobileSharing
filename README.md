@@ -75,15 +75,15 @@ You'll need to add the file formats that your app can accept in the `Info.plist`
 
 ### Setup on Android
 
-The module has its own Android Java sources (`io.emeric.utils`) and FileProvider `res/xml/filepaths.xml` files.  
+The module has its own Android Java sources (`io.emeric.mobilesharing`) and FileProvider `res/xml/filepaths.xml` files.  
 These resources are **copied into your own application android source dir** automatically at configure time.  
 
 You can add these copied files (especially the java files, because you may choose to customize the FileProvider paths) to your `.gitignore`:
 
 ```
 # MobileSharing module resources (from thirdparty/MobileSharing/android/)
-assets/android/src/io/emeric/utils/QShareActivity.java
-assets/android/src/io/emeric/utils/QShareUtils.java
+assets/android/src/io/emeric/mobilesharing/QShareActivity.java
+assets/android/src/io/emeric/mobilesharing/QShareUtils.java
 ```
 
 Like in many Qt / Android app, you only need to:
@@ -105,14 +105,14 @@ implementation 'androidx.core:core:1.6.1'
 To **receive** content, set your launcher activity to the module's `QShareActivity` and add the incoming intent-filters.
 
 `QShareActivity` is what makes reception work (it handles `onNewIntent`/`onActivityResult` and the JNI callbacks) so receiving will **not** work with the stock `QtActivity`.  
-If your app already needs a custom activity, have it **extend `io.emeric.utils.QShareActivity`** instead of `QtActivity`.  
+If your app already needs a custom activity, have it **extend `io.emeric.mobilesharing.QShareActivity`** instead of `QtActivity`.  
 
 `singleTask` (or `singleInstance`) is **required** so a share reuses the running instance via `onNewIntent` rather than spawning a second one.
 
 Edit your manifest's activity section:
 
 ```xml
-<activity android:name="io.emeric.utils.QShareActivity" android:launchMode="singleTask" ... > <!-- Change name and launchMode-->
+<activity android:name="io.emeric.mobilesharing.QShareActivity" android:launchMode="singleTask" ... > <!-- Change name and launchMode-->
 
     <!-- Handle incoming content shared into this app (adjust mimeType to your own needs) -->
     <intent-filter>

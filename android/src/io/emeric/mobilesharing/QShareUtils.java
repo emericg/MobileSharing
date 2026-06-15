@@ -21,7 +21,7 @@
  * SOFTWARE.
  */
 
-package io.emeric.utils;
+package io.emeric.mobilesharing;
 
 import java.lang.String;
 import java.io.File;

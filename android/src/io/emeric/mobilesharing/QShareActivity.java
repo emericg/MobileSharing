@@ -22,8 +22,8 @@
  */
 
 // The module owns this Activity under a fixed package, so the host never renames
-// it: just reference "io.emeric.utils.QShareActivity" in the AndroidManifest.
-package io.emeric.utils;
+// it: just reference "io.emeric.mobilesharing.QShareActivity" in the AndroidManifest.
+package io.emeric.mobilesharing;
 
 import org.qtproject.qt.android.QtNative;
 import org.qtproject.qt.android.bindings.QtActivity;
