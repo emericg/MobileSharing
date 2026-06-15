@@ -153,6 +153,11 @@ void MobileSharing::editFile(const QString &filePath, const QString &title, cons
     mPlatformShareUtils->editFile(filePath, title, mimeType, requestId);
 }
 
+QString MobileSharing::getCacheDirectory() const
+{
+    return mWorkingDir;
+}
+
 void MobileSharing::importFile(const QUrl &source)
 {
     if (!source.isValid())
