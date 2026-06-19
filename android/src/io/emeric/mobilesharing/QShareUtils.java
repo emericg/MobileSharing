@@ -27,8 +27,12 @@ import java.lang.String;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Collections;
@@ -466,6 +470,95 @@ public class QShareUtils
         } catch (Exception e) {
             Log.e("QShareUtils", "createFile: failed - " + e.getMessage());
             return null;
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // Outgoing "save file to..." helpers (SAF ACTION_CREATE_DOCUMENT)
+    // ------------------------------------------------------------------------
+
+    // Source paths for in-flight saveFile() requests, keyed by request code. The
+    // destination is only known later (in QShareActivity.onActivityResult), so we
+    // stash the source here between launching the picker and writing the bytes.
+    private static final Map<Integer, String> pendingSaves =
+            Collections.synchronizedMap(new HashMap<Integer, String>());
+
+    public static boolean isPendingSave(int requestCode) {
+        return pendingSaves.containsKey(requestCode);
+    }
+
+    // Launch the system "create document" picker. The actual write happens in
+    // completeSave() once the user picked a destination. Returns false (so the C++
+    // layer can report an error) if there is no QShareActivity to receive the result.
+    public static boolean saveFile(String sourcePath, String suggestedName, String mimeType, int requestId) {
+        if (m_activity == null) return false;
+        if (!(m_activity instanceof QShareActivity)) {
+            // Without QShareActivity, onActivityResult() won't reach us and the result is lost.
+            Log.e("QShareUtils", "saveFile: requires QShareActivity to receive the result");
+            return false;
+        }
+
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType((mimeType == null || mimeType.isEmpty()) ? "*/*" : mimeType);
+        if (suggestedName != null && !suggestedName.isEmpty()) {
+            intent.putExtra(Intent.EXTRA_TITLE, suggestedName);
+        }
+
+        // Do NOT gate this on resolveActivity(): ACTION_CREATE_DOCUMENT is always handled by
+        // the system DocumentsUI, but resolveActivity()/queryIntentActivities() are filtered by
+        // Android 11+ package visibility and return null here even though startActivityForResult()
+        // succeeds. So launch directly and only treat a thrown ActivityNotFoundException as failure.
+        pendingSaves.put(requestId, sourcePath);
+        QShareActivity.ownRequestCodes.add(requestId);
+        try {
+            m_activity.startActivityForResult(intent, requestId);
+            return true;
+        } catch (android.content.ActivityNotFoundException e) {
+            Log.e("QShareUtils", "saveFile: no activity to handle ACTION_CREATE_DOCUMENT - " + e);
+            pendingSaves.remove(requestId);
+            QShareActivity.ownRequestCodes.remove(requestId);
+            return false;
+        }
+    }
+
+    // Called from QShareActivity.onActivityResult(): write the stashed source file into the
+    // user-chosen destination Uri (null means the user cancelled), then notify C++ natively.
+    public static void completeSave(ContentResolver cR, int requestCode, Uri destUri) {
+        String sourcePath = pendingSaves.remove(requestCode);
+
+        if (destUri == null) {
+            QShareActivity.fireSaveResult(requestCode, false, true); // cancelled
+            return;
+        }
+        if (sourcePath == null) {
+            Log.e("QShareUtils", "completeSave: no pending source for request " + requestCode);
+            QShareActivity.fireSaveResult(requestCode, false, false);
+            return;
+        }
+
+        boolean ok = writeFileToUri(cR, sourcePath, destUri);
+        QShareActivity.fireSaveResult(requestCode, ok, false);
+    }
+
+    // Stream a local file into a content:// Uri via the ContentResolver's OutputStream.
+    private static boolean writeFileToUri(ContentResolver cR, String sourcePath, Uri destUri) {
+        try (InputStream is = new FileInputStream(sourcePath);
+             OutputStream os = cR.openOutputStream(destUri)) {
+            if (os == null) {
+                Log.e("QShareUtils", "writeFileToUri: cannot open OutputStream for " + destUri);
+                return false;
+            }
+            byte[] buffer = new byte[4096];
+            int length;
+            while ((length = is.read(buffer)) > 0) {
+                os.write(buffer, 0, length);
+            }
+            Log.d("QShareUtils", "writeFileToUri: wrote " + sourcePath + " -> " + destUri);
+            return true;
+        } catch (Exception e) {
+            Log.e("QShareUtils", "writeFileToUri: failed - " + e.getMessage());
+            return false;
         }
     }
 }

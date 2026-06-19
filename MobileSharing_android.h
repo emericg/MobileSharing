@@ -66,6 +66,8 @@ public:
     AndroidShareUtils(QObject *parent = nullptr);
     static AndroidShareUtils *getInstance();
 
+    void checkPendingIntents(const QString &workingDirPath) override;
+
     bool checkMimeTypeView(const QString &mimeType) override;
     bool checkMimeTypeEdit(const QString &mimeType) override;
 
@@ -74,11 +76,20 @@ public:
     void sendFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId, bool move) override;
     void viewFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId) override;
     void editFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId) override;
+    void saveFile(const QString &filePath, const QString &suggestedName, const QString &mimeType, const int &requestId) override;
 
     void handleActivityResult(int receiverRequestCode, int resultCode, const QJniObject &data) override;
     void onActivityResult(int requestCode, int resultCode);
 
-    void checkPendingIntents(const QString &workingDirPath) override;
+    /*!
+     * \brief Called from JNI (QShareActivity) once a saveFile() flow finished in Java.
+     * \param requestCode: The request id passed to saveFile().
+     * \param success: True if the source bytes were written into the chosen destination.
+     * \param canceled: True if the user dismissed the picker (success is then false).
+     *
+     * Emits fileSaved() on success, shareFinished() on cancel, shareError() otherwise.
+     */
+    void onSaveResult(int requestCode, bool success, bool canceled);
 
 public slots:
     /*!

@@ -63,6 +63,9 @@ MobileSharing::MobileSharing(QObject *parent) : QObject(parent)
     connectResult = connect(mPlatformShareUtils, &PlatformShareUtils::fileReceived, this, &MobileSharing::onFileReceived);
     Q_ASSERT(connectResult);
 
+    connectResult = connect(mPlatformShareUtils, &PlatformShareUtils::fileSaved, this, &MobileSharing::onFileSaved);
+    Q_ASSERT(connectResult);
+
     Q_UNUSED(connectResult)
 
     // Module-owned temporary cache directory (cache/MobileSharing) with incoming/ and outgoing/ subdirs.
@@ -151,6 +154,17 @@ void MobileSharing::viewFile(const QString &filePath, const QString &title, cons
 void MobileSharing::editFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId)
 {
     mPlatformShareUtils->editFile(filePath, title, mimeType, requestId);
+}
+
+void MobileSharing::saveFile(const QString &filePath, const QString &suggestedName, const QString &mimeType, const int &requestId)
+{
+    if (!QFileInfo::exists(filePath))
+    {
+        Q_EMIT shareError(requestId, QStringLiteral("Save: source file does not exist: %1").arg(filePath));
+        return;
+    }
+
+    mPlatformShareUtils->saveFile(filePath, suggestedName, mimeType, requestId);
 }
 
 QString MobileSharing::getCacheDirectory() const
@@ -247,6 +261,11 @@ void MobileSharing::onShareNoAppAvailable(int requestCode)
 void MobileSharing::onShareError(int requestCode, const QString &message)
 {
     Q_EMIT shareError(requestCode, message);
+}
+
+void MobileSharing::onFileSaved(int requestCode)
+{
+    Q_EMIT fileSaved(requestCode);
 }
 
 /* ************************************************************************** */

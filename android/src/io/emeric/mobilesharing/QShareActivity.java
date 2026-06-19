@@ -49,6 +49,8 @@ public class QShareActivity extends QtActivity
     public static native void setFileReceived(String filePath);
     // result of an outgoing share started with startActivityForResult:
     public static native void fireActivityResult(int requestCode, int resultCode);
+    // result of a saveFile() flow (ACTION_CREATE_DOCUMENT + ContentResolver write):
+    public static native void fireSaveResult(int requestCode, boolean success, boolean canceled);
 
     public static boolean isIntentPending;
     public static boolean isInitialized;
@@ -105,6 +107,16 @@ public class QShareActivity extends QtActivity
         // Qt's own QFileDialog/FileDialog); firing fireActivityResult() for those would
         // emit spurious shareFinished()/shareError() signals
         if (!ownRequestCodes.remove(requestCode)) {
+            return;
+        }
+
+        // saveFile() flow (ACTION_CREATE_DOCUMENT): stream our source into the chosen
+        // destination URI here, then report success/cancel back natively. The result Intent
+        // (unlike a plain share) carries the destination, so we must handle it before the
+        // generic fireActivityResult() path below.
+        if (QShareUtils.isPendingSave(requestCode)) {
+            Uri destUri = (resultCode == RESULT_OK && data != null) ? data.getData() : null;
+            QShareUtils.completeSave(getContentResolver(), requestCode, destUri);
             return;
         }
 

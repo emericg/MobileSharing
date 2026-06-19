@@ -65,6 +65,7 @@ signals:
     void shareNoAppAvailable(int requestCode);
     void shareError(int requestCode, QString message);
     void fileReceived(QString filePath);
+    void fileSaved(int requestCode);
 
 public:
     PlatformShareUtils(QObject *parent = nullptr) : QObject(parent) { };
@@ -93,6 +94,9 @@ public:
     }
     virtual void editFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId) {
         qDebug() << filePath << " - " << title << "requestId: " << requestId << " - " << mimeType;
+    }
+    virtual void saveFile(const QString &filePath, const QString &suggestedName, const QString &mimeType, const int &requestId) {
+        qDebug() << filePath << " - " << suggestedName << "requestId: " << requestId << " - " << mimeType;
     }
 
     const QMimeDatabase &getMimeDatabase() const {
@@ -138,12 +142,21 @@ signals:
      */
     void fileReceived(const QString &filePath);
 
+    /*!
+     * \brief fileSaved signal, emitted once a saveFile() request completed successfully.
+     * \param requestCode: The request id passed to saveFile().
+     *
+     * A cancelled save emits shareFinished() instead, and a failed one shareError().
+     */
+    void fileSaved(int requestCode);
+
 public slots:
     void onShareEditDone(int requestCode);
     void onShareFinished(int requestCode);
     void onShareNoAppAvailable(int requestCode);
     void onShareError(int requestCode, const QString &message);
     void onFileReceived(const QString &filePath);
+    void onFileSaved(int requestCode);
 
 public:
     explicit MobileSharing(QObject *parent = nullptr);
@@ -164,6 +177,8 @@ public:
     Q_INVOKABLE void sendFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId, bool move = false);
     Q_INVOKABLE void viewFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId);
     Q_INVOKABLE void editFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId);
+
+    Q_INVOKABLE void saveFile(const QString &filePath, const QString &suggestedName, const QString &mimeType, const int &requestId);
 };
 
 /* ************************************************************************** */

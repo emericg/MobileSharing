@@ -63,6 +63,11 @@ static void jni_fireActivityResult(JNIEnv */*env*/, jobject /*thiz*/, jint reque
     AndroidShareUtils::getInstance()->onActivityResult(requestCode, resultCode);
 }
 
+static void jni_fireSaveResult(JNIEnv */*env*/, jobject /*thiz*/, jint requestCode, jboolean success, jboolean canceled)
+{
+    AndroidShareUtils::getInstance()->onSaveResult(requestCode, success, canceled);
+}
+
 } // extern "C"
 
 static void registerNativeMethods()
@@ -70,6 +75,7 @@ static void registerNativeMethods()
     const JNINativeMethod methods[] = {
         {"setFileReceived",    "(Ljava/lang/String;)V", reinterpret_cast<void *>(jni_setFileReceived)},
         {"fireActivityResult", "(II)V",                 reinterpret_cast<void *>(jni_fireActivityResult)},
+        {"fireSaveResult",     "(IZZ)V",                reinterpret_cast<void *>(jni_fireSaveResult)},
     };
 
     QJniEnvironment env;
@@ -319,6 +325,49 @@ void AndroidShareUtils::editFile(const QString &filePath, const QString &title,
     {
         qWarning() << "Unable to resolve activity from Java";
         Q_EMIT shareNoAppAvailable(requestId);
+    }
+}
+
+/* ************************************************************************** */
+
+void AndroidShareUtils::saveFile(const QString &filePath, const QString &suggestedName,
+                                 const QString &mimeType, const int &requestId)
+{
+    // Hand the source path + suggested name to Java, which launches ACTION_CREATE_DOCUMENT
+    // and (on result) streams our bytes into the chosen destination via the ContentResolver.
+    // The outcome comes back asynchronously through jni_fireSaveResult() -> onSaveResult().
+    QJniObject jsPath = QJniObject::fromString(filePath);
+    QJniObject jsName = QJniObject::fromString(suggestedName);
+    QJniObject jsMimeType = QJniObject::fromString(mimeType);
+
+    jboolean ok = QJniObject::callStaticMethod<jboolean>("io/emeric/mobilesharing/QShareUtils", "saveFile",
+                                                         "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;I)Z",
+                                                         jsPath.object<jstring>(), jsName.object<jstring>(),
+                                                         jsMimeType.object<jstring>(), requestId);
+    if (!ok)
+    {
+        qWarning() << "saveFile: could not start the document creation activity";
+        Q_EMIT shareError(requestId, QString("Cannot save file: %1").arg(filePath));
+    }
+}
+
+/* ************************************************************************** */
+
+void AndroidShareUtils::onSaveResult(int requestCode, bool success, bool canceled)
+{
+    qDebug() << "onSaveResult requestCode:" << requestCode << "success:" << success << "canceled:" << canceled;
+
+    if (success)
+    {
+        Q_EMIT fileSaved(requestCode);
+    }
+    else if (canceled)
+    {
+        Q_EMIT shareFinished(requestCode);
+    }
+    else
+    {
+        Q_EMIT shareError(requestCode, "Save: could not write the file to the chosen location");
     }
 }
 
