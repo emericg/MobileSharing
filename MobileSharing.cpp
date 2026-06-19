@@ -167,6 +167,11 @@ void MobileSharing::saveFile(const QString &filePath, const QString &suggestedNa
     mPlatformShareUtils->saveFile(filePath, suggestedName, mimeType, requestId);
 }
 
+void MobileSharing::openFile()
+{
+    mPlatformShareUtils->openFile();
+}
+
 QString MobileSharing::getCacheDirectory() const
 {
     return mWorkingDir;

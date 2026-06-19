@@ -98,6 +98,9 @@ public:
     virtual void saveFile(const QString &filePath, const QString &suggestedName, const QString &mimeType, const int &requestId) {
         qDebug() << filePath << " - " << suggestedName << "requestId: " << requestId << " - " << mimeType;
     }
+    virtual void openFile() {
+        qDebug() << "openFile";
+    }
 
     const QMimeDatabase &getMimeDatabase() const {
         return m_mimeDatabase;
@@ -179,6 +182,8 @@ public:
     Q_INVOKABLE void editFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId);
 
     Q_INVOKABLE void saveFile(const QString &filePath, const QString &suggestedName, const QString &mimeType, const int &requestId);
+
+    Q_INVOKABLE void openFile();
 };
 
 /* ************************************************************************** */

@@ -45,7 +45,14 @@ public:
     void viewFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId);
     void editFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId);
 
+    void saveFile(const QString &filePath, const QString &suggestedName, const QString &mimeType, const int &requestId);
+    void openFile();
+
     void handleDocumentPreviewDone(const int &requestId);
+
+    void handleSaveResult(const int &requestId, bool success, bool canceled);
+
+    void handleImportedFile(const QString &filePath);
 
 public slots:
     void handleFileUrlReceived(const QUrl &url);

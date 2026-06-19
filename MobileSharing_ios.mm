@@ -58,10 +58,74 @@ static UIViewController *topViewController()
             return keyWindow.rootViewController; // best match
         }
         if (fallbackWindow == nil) fallbackWindow = keyWindow;
-}
+    }
 
     return fallbackWindow.rootViewController;
 }
+
+/* ************************************************************************** */
+
+// Delegate for the "save file to..." export picker
+@interface DocExportDelegate : NSObject <UIDocumentPickerDelegate>
+@property (nonatomic) int requestId;
+@property (nonatomic) IosShareUtils *mIosShareUtils;
+@property (nonatomic, retain) NSURL *stagingDir; // temp dir to remove afterwards, or nil
+@end
+
+@implementation DocExportDelegate
+
+- (void)cleanup {
+    if (self.stagingDir) {
+        [[NSFileManager defaultManager] removeItemAtURL:self.stagingDir error:nil];
+        self.stagingDir = nil;
+    }
+}
+
+- (void)documentPicker:(UIDocumentPickerViewController *)controller didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
+#pragma unused (controller, urls)
+    if (self.mIosShareUtils) self.mIosShareUtils->handleSaveResult(self.requestId, true, false);
+    [self cleanup];
+    [self release];
+}
+
+- (void)documentPickerWasCancelled:(UIDocumentPickerViewController *)controller {
+#pragma unused (controller)
+    if (self.mIosShareUtils) self.mIosShareUtils->handleSaveResult(self.requestId, false, true);
+    [self cleanup];
+    [self release];
+}
+
+- (void)dealloc {
+    [_stagingDir release];
+    [super dealloc];
+}
+
+@end
+
+/* ************************************************************************** */
+
+// Delegate for the "open file" import picker
+@interface DocImportDelegate : NSObject <UIDocumentPickerDelegate>
+@property (nonatomic) IosShareUtils *mIosShareUtils;
+@end
+
+@implementation DocImportDelegate
+
+- (void)documentPicker:(UIDocumentPickerViewController *)controller didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
+#pragma unused (controller)
+    NSURL *picked = urls.firstObject;
+    if (self.mIosShareUtils && picked) {
+        self.mIosShareUtils->handleImportedFile(QString::fromNSString(picked.path));
+    }
+    [self release];
+}
+
+- (void)documentPickerWasCancelled:(UIDocumentPickerViewController *)controller {
+#pragma unused (controller)
+    [self release];
+}
+
+@end
 
 /* ************************************************************************** */
 
@@ -176,6 +240,91 @@ void IosShareUtils::editFile(const QString &filePath, const QString &title, cons
 #pragma unused (title, mimeType)
 
     sendFile(filePath, title, mimeType, requestId, false);
+}
+
+void IosShareUtils::saveFile(const QString &filePath, const QString &suggestedName, const QString &mimeType, const int &requestId) {
+#pragma unused (mimeType)
+
+    NSString *srcPath = filePath.toNSString();
+    NSFileManager *fm = [NSFileManager defaultManager];
+    if (![fm fileExistsAtPath:srcPath]) {
+        emit shareError(requestId, QString("Cannot save file: %1").arg(filePath));
+        return;
+    }
+
+    // The iOS export picker keeps the source file's own name.
+    // If a different name is requested, stage a copy under that name in a temp dir and export that instead.
+    NSURL *exportUrl = [NSURL fileURLWithPath:srcPath];
+    NSURL *stagingDir = nil;
+    if (!suggestedName.isEmpty() && suggestedName != QFileInfo(filePath).fileName()) {
+        NSString *dirPath = [NSTemporaryDirectory() stringByAppendingPathComponent:[@"MobileSharingExport-" stringByAppendingString:[[NSUUID UUID] UUIDString]]];
+        if ([fm createDirectoryAtPath:dirPath withIntermediateDirectories:YES attributes:nil error:nil]) {
+            NSString *stagedPath = [dirPath stringByAppendingPathComponent:suggestedName.toNSString()];
+            if ([fm copyItemAtPath:srcPath toPath:stagedPath error:nil]) {
+                exportUrl = [NSURL fileURLWithPath:stagedPath];
+                stagingDir = [NSURL fileURLWithPath:dirPath];
+            }
+        }
+    }
+
+    // asCopy:YES leaves our (session-wiped) source in place; iOS exports a duplicate.
+    UIDocumentPickerViewController *picker = [[UIDocumentPickerViewController alloc] initForExportingURLs:@[exportUrl] asCopy:YES];
+
+    DocExportDelegate *delegate = [[DocExportDelegate alloc] init];
+    delegate.requestId = requestId;
+    delegate.mIosShareUtils = this;
+    delegate.stagingDir = stagingDir; // retained by the property
+    picker.delegate = delegate; // assign; the delegate keeps itself alive until its callback
+
+    UIViewController *root = topViewController();
+    if (root != nil) {
+        [root presentViewController:picker animated:YES completion:nil];
+    } else {
+        emit shareError(requestId, "Cannot save file: no root view controller");
+        [delegate cleanup];
+        [delegate release];
+    }
+    [picker release];
+}
+
+void IosShareUtils::openFile() {
+    // asCopy:YES makes iOS copy the picked file into our own container and hand back a readable URL,
+    // sidestepping the security-scoped File Provider URL that Qt's FileDialog returns (which QFile cannot read).
+    UIDocumentPickerViewController *picker = [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:@[UTTypeItem] asCopy:YES];
+
+    DocImportDelegate *delegate = [[DocImportDelegate alloc] init];
+    delegate.mIosShareUtils = this;
+    picker.delegate = delegate; // assign; the delegate keeps itself alive until its callback
+
+    UIViewController *root = topViewController();
+    if (root != nil) {
+        [root presentViewController:picker animated:YES completion:nil];
+    } else {
+        emit shareError(0, "Cannot open file: no root view controller");
+        [delegate release];
+    }
+    [picker release];
+}
+
+void IosShareUtils::handleImportedFile(const QString &filePath) {
+    // The copy lives in our sandbox temp; emit it like any incoming file.
+    // MobileSharing::onFileReceived() then relocates it into the cache's MobileSharing/incoming/ dir.
+    QFileInfo fi(filePath);
+    if (fi.exists() && fi.isFile()) {
+        emit fileReceived(filePath);
+    } else {
+        emit shareError(0, QString("Open: imported file is not readable: %1").arg(filePath));
+    }
+}
+
+void IosShareUtils::handleSaveResult(const int &requestId, bool success, bool canceled) {
+    if (success) {
+        emit fileSaved(requestId);
+    } else if (canceled) {
+        emit shareFinished(requestId);
+    } else {
+        emit shareError(requestId, "Save: could not export the file");
+    }
 }
 
 /* ************************************************************************** */

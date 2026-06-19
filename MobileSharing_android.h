@@ -27,10 +27,7 @@
 
 #include "MobileSharing.h"
 
-#include <QtGlobal>
 #include <QtCore/private/qandroidextras_p.h>
-
-#include <QCoreApplication>
 #include <QJniObject>
 
 /* ************************************************************************** */
