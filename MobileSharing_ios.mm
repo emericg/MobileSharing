@@ -69,14 +69,23 @@ void IosShareUtils::sendText(const QString &text, const QString &subject, const 
         [sharingItems addObject:url.toNSURL()];
     }
 
-    // get the main window rootViewController
-    UIViewController *qtUIViewController = [[UIApplication sharedApplication].keyWindow rootViewController];
+    // Get the main window rootViewController. Don't use the deprecated keyWindow (it can be nil
+    // on modern iOS, which silently no-ops the present); use the first window like sendFile() does.
+    UIViewController *qtUIViewController = [[[[UIApplication sharedApplication] windows] firstObject] rootViewController];
 
     UIActivityViewController *activityController = [[UIActivityViewController alloc] initWithActivityItems:sharingItems applicationActivities:nil];
-    if ( [activityController respondsToSelector:@selector(popoverPresentationController)] ) { // iOS8
+    if (qtUIViewController == nil) {
+        emit shareError(0, "Cannot share: no root view controller");
+        [activityController release];
+        return;
+    }
+    if ( [activityController respondsToSelector:@selector(popoverPresentationController)] ) { // iPad: anchor the popover
         activityController.popoverPresentationController.sourceView = qtUIViewController.view;
+        activityController.popoverPresentationController.sourceRect = CGRectMake(qtUIViewController.view.bounds.size.width / 2.0,
+                                                                                qtUIViewController.view.bounds.size.height / 2.0, 0, 0);
     }
     [qtUIViewController presentViewController:activityController animated:YES completion:nil];
+    [activityController release];
 }
 
 void IosShareUtils::sendFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId, bool move) {

@@ -130,15 +130,18 @@ public class QShareUtils
         sendIntent.setType("text/plain");
 
         Intent chooserIntent = Intent.createChooser(sendIntent, "Share to messenger");
-        
-        // Verify that the intent will resolve to an activity
-        if (sendIntent.resolveActivity(m_activity.getPackageManager()) != null) {
+
+        // Launch the chooser directly. Don't gate on resolveActivity(): on Android 11+ it is
+        // filtered by package visibility and can falsely return null, while the system chooser
+        // is exempt from that filtering anyway. Only a thrown ActivityNotFoundException (no app
+        // at all) is a real miss.
+        try {
             m_activity.startActivity(chooserIntent);
             return true;
-        } else {
-            Log.d("QShareUtils", " sendText() Intent not resolved");
+        } catch (android.content.ActivityNotFoundException e) {
+            Log.d("QShareUtils", " sendText() no app to handle ACTION_SEND - " + e);
+            return false;
         }
-        return false;
     }
 
     // thx @oxied and @pooks for the idea: https://stackoverflow.com/a/18835895/135559
