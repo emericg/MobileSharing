@@ -22,10 +22,8 @@
  */
 
 #import "MobileSharing_ios.h"
-#import "docviewcontroller_ios.h"
 
 #import <UIKit/UIKit.h>
-#import <UIKit/UIDocumentInteractionController.h>
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 #import <QGuiApplication>
@@ -196,38 +194,41 @@ void IosShareUtils::sendText(const QString &text, const QString &subject, const 
 
 void IosShareUtils::sendFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId, bool move) {
 #pragma unused (title, mimeType, move)
-    // 'move' is a no-op on iOS: any file in the app sandbox is shareable as-is via
-    // UIDocumentInteractionController (no FileProvider equivalent). Throwaway-file
-    // cleanup on iOS is left to the app (e.g. delete after onShareFinished).
+    // 'move' is a no-op on iOS: any file in the app sandbox is shareable as-is (no FileProvider
+    // equivalent). Throwaway-file cleanup is left to the app (e.g. delete after shareFinished).
+    // We present the system share sheet (UIActivityViewController), which offers AirDrop,
+    // "Save to Files", "Copy to <app>", etc. - a superset of the old Quick Look preview.
 
-    NSString *nsFilePath = filePath.toNSString();
-    NSURL *nsFileUrl = [NSURL fileURLWithPath:nsFilePath];
-
-    static DocViewController *docViewController = nil;
-    if (docViewController != nil) {
-        [docViewController removeFromParentViewController];
-        [docViewController release];
-    }
-
-    UIDocumentInteractionController *documentInteractionController = nil;
-    documentInteractionController = [UIDocumentInteractionController interactionControllerWithURL:nsFileUrl];
+    NSURL *fileUrl = [NSURL fileURLWithPath:filePath.toNSString()];
 
     UIViewController *qtUIViewController = topViewController();
-    if (qtUIViewController!=nil) {
-        docViewController = [[DocViewController alloc] init];
-
-        docViewController.requestId = requestId;
-        // we need this to be able to execute handleDocumentPreviewDone() method,
-        // when preview was finished
-        docViewController.mIosShareUtils = this;
-
-        [qtUIViewController addChildViewController:docViewController];
-        documentInteractionController.delegate = docViewController;
-        // [documentInteractionController presentPreviewAnimated:YES];
-        if (![documentInteractionController presentPreviewAnimated:YES]) {
-            emit shareError(0, QString("No App found to open: %1").arg(filePath));
-        }
+    UIActivityViewController *activityController =
+        [[UIActivityViewController alloc] initWithActivityItems:@[fileUrl] applicationActivities:nil];
+    if (qtUIViewController == nil) {
+        emit shareError(requestId, "Cannot share: no root view controller");
+        [activityController release];
+        return;
     }
+
+    // Report the outcome once the sheet closes.
+    activityController.completionWithItemsHandler = ^(UIActivityType activityType, BOOL completed,
+                                                      NSArray *returnedItems, NSError *activityError) {
+#pragma unused (activityType, returnedItems)
+        if (activityError) {
+            emit shareError(requestId, QString::fromNSString(activityError.localizedDescription));
+        } else if (completed) {
+            emit shareFinished(requestId);
+        }
+        // dismissed without sharing -> stay silent
+    };
+
+    // iPad: anchor the popover (harmless on iPhone, where it presents as a sheet).
+    activityController.popoverPresentationController.sourceView = qtUIViewController.view;
+    activityController.popoverPresentationController.sourceRect = CGRectMake(qtUIViewController.view.bounds.size.width / 2.0,
+                                                                            qtUIViewController.view.bounds.size.height / 2.0, 0, 0);
+
+    [qtUIViewController presentViewController:activityController animated:YES completion:nil];
+    [activityController release];
 }
 
 void IosShareUtils::viewFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId) {
@@ -325,15 +326,6 @@ void IosShareUtils::handleSaveResult(const int &requestId, bool success, bool ca
     } else {
         emit shareError(requestId, "Save: could not export the file");
     }
-}
-
-/* ************************************************************************** */
-
-void IosShareUtils::handleDocumentPreviewDone(const int &requestId)
-{
-    // documentInteractionControllerDidEndPreview
-    qDebug() << "handleShareDone: " << requestId;
-    emit shareFinished(requestId);
 }
 
 void IosShareUtils::handleFileUrlReceived(const QUrl &url)

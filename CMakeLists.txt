@@ -33,8 +33,7 @@ elseif (IOS)
     find_package(Qt6 REQUIRED COMPONENTS Quick)
     set(PLATFORM_LIBRARIES Qt::Quick)
     set(PLATFORM_SOURCES
-        MobileSharing_ios.mm
-        docviewcontroller_ios.mm)
+        MobileSharing_ios.mm)
 endif()
 
 ################################################################################

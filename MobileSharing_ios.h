@@ -48,8 +48,6 @@ public:
     void saveFile(const QString &filePath, const QString &suggestedName, const QString &mimeType, const int &requestId);
     void openFile();
 
-    void handleDocumentPreviewDone(const int &requestId);
-
     void handleSaveResult(const int &requestId, bool success, bool canceled);
 
     void handleImportedFile(const QString &filePath);
