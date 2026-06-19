@@ -25,6 +25,7 @@
 
 #import <UIKit/UIKit.h>
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
+#import <QuickLook/QuickLook.h>
 
 #import <QGuiApplication>
 #import <QQuickWindow>
@@ -121,6 +122,42 @@ static UIViewController *topViewController()
 - (void)documentPickerWasCancelled:(UIDocumentPickerViewController *)controller {
 #pragma unused (controller)
     [self release];
+}
+
+@end
+
+/* ************************************************************************** */
+
+// Data source + delegate for the in-app file viewer (QLPreviewController). Same MRC
+// self-ownership as the picker delegates: alive from creation until the preview is
+// dismissed, then it releases itself. NSURL already conforms to <QLPreviewItem>.
+@interface QLPreviewHelper : NSObject <QLPreviewControllerDataSource, QLPreviewControllerDelegate>
+@property (nonatomic) int requestId;
+@property (nonatomic) IosShareUtils *mIosShareUtils;
+@property (nonatomic, retain) NSURL *fileUrl;
+@end
+
+@implementation QLPreviewHelper
+
+- (NSInteger)numberOfPreviewItemsInPreviewController:(QLPreviewController *)controller {
+#pragma unused (controller)
+    return self.fileUrl ? 1 : 0;
+}
+
+- (id<QLPreviewItem>)previewController:(QLPreviewController *)controller previewItemAtIndex:(NSInteger)index {
+#pragma unused (controller, index)
+    return self.fileUrl;
+}
+
+- (void)previewControllerDidDismiss:(QLPreviewController *)controller {
+#pragma unused (controller)
+    if (self.mIosShareUtils) self.mIosShareUtils->handlePreviewDismissed(self.requestId);
+    [self release];
+}
+
+- (void)dealloc {
+    [_fileUrl release];
+    [super dealloc];
 }
 
 @end
@@ -233,8 +270,32 @@ void IosShareUtils::sendFile(const QString &filePath, const QString &title, cons
 
 void IosShareUtils::viewFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId) {
 #pragma unused (title, mimeType)
+    // In-app file preview via QuickLook.
+    // Unsupported types still present (QLPreviewController shows a placeholder with its own share button), so no fallback is needed here.
 
-    sendFile(filePath, title, mimeType, requestId, false);
+    NSString *path = filePath.toNSString();
+    if (![[NSFileManager defaultManager] fileExistsAtPath:path]) {
+        emit shareError(requestId, QString("Cannot view file: %1").arg(filePath));
+        return;
+    }
+
+    UIViewController *root = topViewController();
+    if (root == nil) {
+        emit shareError(requestId, "Cannot view file: no root view controller");
+        return;
+    }
+
+    QLPreviewController *preview = [[QLPreviewController alloc] init];
+
+    QLPreviewHelper *helper = [[QLPreviewHelper alloc] init];
+    helper.requestId = requestId;
+    helper.mIosShareUtils = this;
+    helper.fileUrl = [NSURL fileURLWithPath:path]; // retained by the property
+    preview.dataSource = helper; // weak; helper keeps itself alive until dismiss
+    preview.delegate = helper; // weak
+
+    [root presentViewController:preview animated:YES completion:nil];
+    [preview release];
 }
 
 void IosShareUtils::editFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId) {
@@ -326,6 +387,10 @@ void IosShareUtils::handleSaveResult(const int &requestId, bool success, bool ca
     } else {
         emit shareError(requestId, "Save: could not export the file");
     }
+}
+
+void IosShareUtils::handlePreviewDismissed(const int &requestId) {
+    emit shareFinished(requestId);
 }
 
 void IosShareUtils::handleFileUrlReceived(const QUrl &url)
