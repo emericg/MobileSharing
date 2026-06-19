@@ -26,6 +26,7 @@
 
 #import <UIKit/UIKit.h>
 #import <UIKit/UIDocumentInteractionController.h>
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 #import <QGuiApplication>
 #import <QQuickWindow>
@@ -35,10 +36,39 @@
 
 /* ************************************************************************** */
 
+// Resolve the view controller to present from.
+// Prefers the foreground-active window scene's key window, and falls back to
+// any window scene if none is active yet. Returns nil if there is none.
+static UIViewController *topViewController()
+{
+    UIWindow *fallbackWindow = nil;
+
+    for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
+        if (![scene isKindOfClass:[UIWindowScene class]]) continue;
+        UIWindowScene *windowScene = (UIWindowScene *)scene;
+
+        UIWindow *keyWindow = nil;
+        for (UIWindow *w in windowScene.windows) {
+            if (w.isKeyWindow) { keyWindow = w; break; }
+        }
+        if (keyWindow == nil) keyWindow = windowScene.windows.firstObject;
+        if (keyWindow == nil) continue;
+
+        if (scene.activationState == UISceneActivationStateForegroundActive) {
+            return keyWindow.rootViewController; // best match
+        }
+        if (fallbackWindow == nil) fallbackWindow = keyWindow;
+}
+
+    return fallbackWindow.rootViewController;
+}
+
+/* ************************************************************************** */
+
 IosShareUtils::IosShareUtils(QObject *parent) : PlatformShareUtils(parent)
 {
-    // Sharing Files from other iOS Apps I got the ideas and some code contribution from:
-    // Thomas K. Fischer (@taskfabric) - http://taskfabric.com - thx
+    // the iOS "receive a file" entry point // analogous to the Android QShareActivity.processIntent() > setFileReceived() path
+    // important note: hijack QDesktopServices::openUrl("file://") though you can't really do that on iOS anyway...
     QDesktopServices::setUrlHandler("file", this, "handleFileUrlReceived");
 }
 
@@ -69,9 +99,7 @@ void IosShareUtils::sendText(const QString &text, const QString &subject, const 
         [sharingItems addObject:url.toNSURL()];
     }
 
-    // Get the main window rootViewController. Don't use the deprecated keyWindow (it can be nil
-    // on modern iOS, which silently no-ops the present); use the first window like sendFile() does.
-    UIViewController *qtUIViewController = [[[[UIApplication sharedApplication] windows] firstObject] rootViewController];
+    UIViewController *qtUIViewController = topViewController();
 
     UIActivityViewController *activityController = [[UIActivityViewController alloc] initWithActivityItems:sharingItems applicationActivities:nil];
     if (qtUIViewController == nil) {
@@ -79,11 +107,25 @@ void IosShareUtils::sendText(const QString &text, const QString &subject, const 
         [activityController release];
         return;
     }
-    if ( [activityController respondsToSelector:@selector(popoverPresentationController)] ) { // iPad: anchor the popover
-        activityController.popoverPresentationController.sourceView = qtUIViewController.view;
-        activityController.popoverPresentationController.sourceRect = CGRectMake(qtUIViewController.view.bounds.size.width / 2.0,
-                                                                                qtUIViewController.view.bounds.size.height / 2.0, 0, 0);
-    }
+
+    // Report the outcome once the sheet closes
+    activityController.completionWithItemsHandler = ^(UIActivityType activityType, BOOL completed,
+                                                      NSArray *returnedItems, NSError *activityError) {
+#pragma unused (activityType, returnedItems)
+        if (activityError) {
+            emit shareError(0, QString::fromNSString(activityError.localizedDescription));
+        } else if (completed) {
+            emit shareFinished(0);
+        } else {
+            // dismissed without sharing -> stay silent
+        }
+    };
+
+    // iPad: anchor the popover (harmless on iPhone, where it presents as a sheet).
+    activityController.popoverPresentationController.sourceView = qtUIViewController.view;
+    activityController.popoverPresentationController.sourceRect = CGRectMake(qtUIViewController.view.bounds.size.width / 2.0,
+                                                                            qtUIViewController.view.bounds.size.height / 2.0, 0, 0);
+
     [qtUIViewController presentViewController:activityController animated:YES completion:nil];
     [activityController release];
 }
@@ -106,7 +148,7 @@ void IosShareUtils::sendFile(const QString &filePath, const QString &title, cons
     UIDocumentInteractionController *documentInteractionController = nil;
     documentInteractionController = [UIDocumentInteractionController interactionControllerWithURL:nsFileUrl];
 
-    UIViewController *qtUIViewController = [[[[UIApplication sharedApplication]windows] firstObject]rootViewController];
+    UIViewController *qtUIViewController = topViewController();
     if (qtUIViewController!=nil) {
         docViewController = [[DocViewController alloc] init];
 
@@ -147,28 +189,22 @@ void IosShareUtils::handleDocumentPreviewDone(const int &requestId)
 
 void IosShareUtils::handleFileUrlReceived(const QUrl &url)
 {
-    QString incomingUrl = url.toString();
-    if (incomingUrl.isEmpty()) {
+    if (url.isEmpty()) {
         qWarning() << "handleFileUrlReceived: we got an empty URL";
         emit shareError(0, "Empty URL received");
         return;
     }
-    qDebug() << "IosShareUtils handleFileUrlReceived: we got the File URL from iOS: " << incomingUrl;
-    QString myUrl;
-    if (incomingUrl.startsWith("file://")) {
-        myUrl = incomingUrl.right(incomingUrl.length()-7);
-        qDebug() << "QFile needs this URL: " << myUrl;
-    } else {
-        myUrl = incomingUrl;
-    }
 
-    // check if File exists (iOS delivers it into the app's Inbox, already owned)
-    QFileInfo fileInfo = QFileInfo(myUrl);
-    if (fileInfo.exists()) {
-        emit fileReceived(myUrl);
+    // Resolve to a real local path with toLocalFile() to handles the file:// scheme and percent-decoding
+    const QString localPath = url.isLocalFile() ? url.toLocalFile() : url.toString();
+    qDebug() << "IosShareUtils handleFileUrlReceived:" << url.toString() << "->" << localPath;
+
+    if (QFileInfo::exists(localPath)) {
+        // iOS delivers the files directly into the app's Inbox
+        emit fileReceived(localPath);
     } else {
-        qDebug() << "handleFileUrlReceived: FILE does NOT exist ";
-        emit shareError(0, QString("File does not exist: %1").arg(myUrl));
+        qWarning() << "handleFileUrlReceived: file does not exist:" << localPath;
+        emit shareError(0, QString("File does not exist: %1").arg(localPath));
     }
 }
 
