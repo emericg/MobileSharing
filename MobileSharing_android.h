@@ -27,12 +27,9 @@
 
 #include "MobileSharing.h"
 
-#include <QtCore/private/qandroidextras_p.h>
-#include <QJniObject>
-
 /* ************************************************************************** */
 
-class AndroidShareUtils : public PlatformShareUtils, public QAndroidActivityResultReceiver
+class AndroidShareUtils : public PlatformShareUtils
 {
     static AndroidShareUtils *mInstance;
 
@@ -75,7 +72,6 @@ public:
     void editFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId) override;
     void saveFile(const QString &filePath, const QString &suggestedName, const QString &mimeType, const int &requestId) override;
 
-    void handleActivityResult(int receiverRequestCode, int resultCode, const QJniObject &data) override;
     void onActivityResult(int requestCode, int resultCode);
 
     /*!

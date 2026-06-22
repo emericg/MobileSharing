@@ -94,9 +94,8 @@ public class QShareActivity extends QtActivity
         super.onDestroy();
     }
 
-    // we start Activity with result code
-    // to test JNI with QAndroidActivityResultReceiver you must comment or rename
-    // this method here - otherwise you'll get wrong request or result codes
+    // Results for activities we launched with startActivityForResult() arrive here and are
+    // forwarded to C++ through the fireActivityResult()/fireSaveResult() JNI callbacks below.
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         Log.d("QShareActivity", " onActivityResult() requestCode: " + requestCode);

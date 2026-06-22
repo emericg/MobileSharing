@@ -52,7 +52,6 @@ import android.content.pm.ResolveInfo;
 import android.content.pm.PackageManager;
 import android.webkit.MimeTypeMap;
 import androidx.core.content.FileProvider;
-import androidx.core.app.ShareCompat;
 
 public class QShareUtils
 {
@@ -270,44 +269,6 @@ public class QShareUtils
         context.startActivity(Intent.createChooser(shareIntent, "Share file using"));
 
         return true;
-/*
-        // using v4 support library create the Intent from ShareCompat
-        // Intent sendIntent = new Intent();
-        Intent sendIntent = ShareCompat.IntentBuilder.from(m_activity).getIntent();
-        sendIntent.setAction(Intent.ACTION_SEND);
-
-        File fileToShare = new File(filePath);
-
-        // Using FileProvider you must get the URI from FileProvider using your AUTHORITY
-        // Uri uri = Uri.fromFile(fileToShare);
-        Uri uri;
-        try {
-            uri = FileProvider.getUriForFile(m_activity, AUTHORITY, fileToShare);
-        } catch (IllegalArgumentException e) {
-            Log.d("QShareUtils", " cannot be shared: " + filePath + " " + e);
-            return false;
-        }
-
-        Log.d("QShareUtils", " sendFile " + uri.toString());
-        sendIntent.putExtra(Intent.EXTRA_STREAM, uri);
-        //sendIntent.setData(Uri.parse("mailto:")); // ?
-        //sendIntent.putExtra(Intent.EXTRA_SUBJECT,title); // ?
-
-        if (mimeType == null || mimeType.isEmpty()) {
-            // fallback if mimeType not set
-            mimeType = m_activity.getContentResolver().getType(uri);
-            Log.d("QShareUtils", " sendFile guessed mimeType: " + mimeType);
-        } else {
-            Log.d("QShareUtils", " sendFile w mimeType: " + mimeType);
-        }
-
-        //sendIntent.setType(mimeType); // replaced
-        sendIntent.setTypeAndNormalize(mimeType); // ?
-        sendIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-        sendIntent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION); // ?
-
-        return createCustomChooserAndStartActivity(sendIntent, title, requestId, uri);
-*/
     }
 
     public static boolean viewFile(String filePath, String title, String mimeType, int requestId) {
@@ -333,44 +294,6 @@ public class QShareUtils
         context.startActivity(Intent.createChooser(shareIntent, "View file using"));
 
         return true;
-/*
-        // using v4 support library create the Intent from ShareCompat
-        // Intent viewIntent = new Intent();
-        Intent viewIntent = ShareCompat.IntentBuilder.from(m_activity).getIntent();
-        viewIntent.setAction(Intent.ACTION_VIEW);
-
-        File fileToShare = new File(filePath);
-
-        // Using FileProvider you must get the URI from FileProvider using your AUTHORITY
-        // Uri uri = Uri.fromFile(fileToShare);
-        Uri uri;
-        try {
-            uri = FileProvider.getUriForFile(m_activity, AUTHORITY, fileToShare);
-        } catch (IllegalArgumentException e) {
-            Log.d("QShareUtils", " viewFile - cannot be shared: " + filePath);
-            return false;
-        }
-        // now we got a content URI per ex
-        // content://org.ekkescorner.examples.sharex.fileprovider/my_shared_files/qt-logo.png
-        // from a fileUrl:
-        // /data/user/0/org.ekkescorner.examples.sharex/files/share_example_x_files/qt-logo.png
-        Log.d("QShareUtils", " viewFile from file path: " + filePath);
-        Log.d("QShareUtils", " viewFile to content URI: " + uri.toString());
-
-        if (mimeType == null || mimeType.isEmpty()) {
-            // fallback if mimeType not set
-            mimeType = m_activity.getContentResolver().getType(uri);
-            Log.d("QShareUtils", " viewFile guessed mimeType: " + mimeType);
-        } else {
-            Log.d("QShareUtils", " viewFile w mimeType: " + mimeType);
-        }
-
-        viewIntent.setDataAndType(uri, mimeType);
-        viewIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-        viewIntent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
-
-        return createCustomChooserAndStartActivity(viewIntent, title, requestId, uri);
-*/
     }
 
     public static boolean editFile(String filePath, String title, String mimeType, int requestId) {

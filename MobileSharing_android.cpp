@@ -31,7 +31,6 @@
 #include <QStandardPaths>
 
 #include <QCoreApplication>
-#include <QtCore/private/qandroidextras_p.h>
 #include <QJniObject>
 #include <QJniEnvironment>
 #include <jni.h>
@@ -369,17 +368,6 @@ void AndroidShareUtils::onSaveResult(int requestCode, bool success, bool cancele
     {
         Q_EMIT shareError(requestCode, "Save: could not write the file to the chosen location");
     }
-}
-
-/* ************************************************************************** */
-/* ************************************************************************** */
-
-// used from QAndroidActivityResultReceiver
-void AndroidShareUtils::handleActivityResult(int receiverRequestCode, int resultCode, const QJniObject &data)
-{
-    Q_UNUSED(data)
-    qDebug() << "From JNI QAndroidActivityResultReceiver: " << receiverRequestCode << "ResultCode:" << resultCode;
-    processActivityResult(receiverRequestCode, resultCode);
 }
 
 /* ************************************************************************** */
