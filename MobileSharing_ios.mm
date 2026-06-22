@@ -179,12 +179,6 @@ bool IosShareUtils::checkMimeTypeView(const QString &mimeType) {
     return true;
 }
 
-bool IosShareUtils::checkMimeTypeEdit(const QString &mimeType) {
-#pragma unused (mimeType)
-    // MimeType not used yet
-    return true;
-}
-
 /* ************************************************************************** */
 
 void IosShareUtils::sendText(const QString &text, const QString &subject, const QUrl &url) {
@@ -296,12 +290,6 @@ void IosShareUtils::viewFile(const QString &filePath, const QString &title, cons
 
     [root presentViewController:preview animated:YES completion:nil];
     [preview release];
-}
-
-void IosShareUtils::editFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId) {
-#pragma unused (title, mimeType)
-
-    sendFile(filePath, title, mimeType, requestId, false);
 }
 
 void IosShareUtils::saveFile(const QString &filePath, const QString &suggestedName, const QString &mimeType, const int &requestId) {

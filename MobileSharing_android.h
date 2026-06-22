@@ -33,12 +33,6 @@ class AndroidShareUtils : public PlatformShareUtils
 {
     static AndroidShareUtils *mInstance;
 
-    bool mIsEditMode = false;
-    qint64 mLastModified = 0;
-    QString mCurrentFilePath;
-
-    void processActivityResult(int requestCode, int resultCode);
-
     /*!
      * \brief Return a path that FileProvider can serve (one under an exposed sandbox dir)
      * \param filePath: The path of the file we want to share.
@@ -63,16 +57,12 @@ public:
     void checkPendingIntents(const QString &workingDirPath) override;
 
     bool checkMimeTypeView(const QString &mimeType) override;
-    bool checkMimeTypeEdit(const QString &mimeType) override;
 
     void sendText(const QString &text, const QString &subject, const QUrl &url) override;
 
     void sendFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId, bool move) override;
     void viewFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId) override;
-    void editFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId) override;
     void saveFile(const QString &filePath, const QString &suggestedName, const QString &mimeType, const int &requestId) override;
-
-    void onActivityResult(int requestCode, int resultCode);
 
     /*!
      * \brief Called from JNI (QShareActivity) once a saveFile() flow finished in Java.

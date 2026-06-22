@@ -37,9 +37,6 @@
 
 /* ************************************************************************** */
 
-const static int RESULT_OK = -1;
-const static int RESULT_CANCELED = 0;
-
 AndroidShareUtils *AndroidShareUtils::mInstance = nullptr;
 
 /* ************************************************************************** */
@@ -57,11 +54,6 @@ static void jni_setFileReceived(JNIEnv */*env*/, jobject /*thiz*/, jstring path)
     AndroidShareUtils::getInstance()->setFileReceived(QJniObject(path).toString());
 }
 
-static void jni_fireActivityResult(JNIEnv */*env*/, jobject /*thiz*/, jint requestCode, jint resultCode)
-{
-    AndroidShareUtils::getInstance()->onActivityResult(requestCode, resultCode);
-}
-
 static void jni_fireSaveResult(JNIEnv */*env*/, jobject /*thiz*/, jint requestCode, jboolean success, jboolean canceled)
 {
     AndroidShareUtils::getInstance()->onSaveResult(requestCode, success, canceled);
@@ -73,7 +65,6 @@ static void registerNativeMethods()
 {
     const JNINativeMethod methods[] = {
         {"setFileReceived",    "(Ljava/lang/String;)V", reinterpret_cast<void *>(jni_setFileReceived)},
-        {"fireActivityResult", "(II)V",                 reinterpret_cast<void *>(jni_fireActivityResult)},
         {"fireSaveResult",     "(IZZ)V",                reinterpret_cast<void *>(jni_fireSaveResult)},
     };
 
@@ -134,19 +125,6 @@ bool AndroidShareUtils::checkMimeTypeView(const QString &mimeType)
                             jsMime.object<jstring>());
 
     //qDebug() << "View VERIFIED: " << mimeType << " - " << verified;
-    return verified;
-}
-
-bool AndroidShareUtils::checkMimeTypeEdit(const QString &mimeType)
-{
-    QJniObject jsMime = QJniObject::fromString(mimeType);
-    jboolean verified = QJniObject::callStaticMethod<jboolean>(
-                            "io/emeric/mobilesharing/QShareUtils",
-                            "checkMimeTypeEdit",
-                            "(Ljava/lang/String;)Z",
-                            jsMime.object<jstring>());
-
-    //qDebug() << "Edit VERIFIED: " << mimeType << " - " << verified;
     return verified;
 }
 
@@ -226,8 +204,6 @@ void AndroidShareUtils::sendText(const QString &text, const QString &subject, co
 void AndroidShareUtils::sendFile(const QString &filePath, const QString &title,
                                  const QString &mimeType, const int &requestId, bool move)
 {
-    mIsEditMode = false;
-
     // Make sure the path is something FileProvider can serve (copy/move into our outgoing dir if needed).
     // 'move' just relocates throwaway files and deletes the original.
     const QString newFilePath = ensureShareableFile(filePath, move);
@@ -263,8 +239,6 @@ void AndroidShareUtils::sendFile(const QString &filePath, const QString &title,
 void AndroidShareUtils::viewFile(const QString &filePath, const QString &title,
                                  const QString &mimeType, const int &requestId)
 {
-    mIsEditMode = false;
-
     const QString newFilePath = ensureShareableFile(filePath, false);
     if (newFilePath.isEmpty())
     {
@@ -279,47 +253,6 @@ void AndroidShareUtils::viewFile(const QString &filePath, const QString &title,
                                                          "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;I)Z",
                                                          jsPath.object<jstring>(), jsTitle.object<jstring>(),
                                                          jsMimeType.object<jstring>(), requestId);
-    if (!ok)
-    {
-        qWarning() << "Unable to resolve activity from Java";
-        Q_EMIT shareNoAppAvailable(requestId);
-    }
-}
-
-/* ************************************************************************** */
-
-/*
- * If a requestId was set we want to get the Activity Result back (recommended)
- * We need the Request Id and Result Id to control our workflow
- */
-void AndroidShareUtils::editFile(const QString &filePath, const QString &title,
-                                 const QString &mimeType, const int &requestId)
-{
-    mIsEditMode = true;
-
-    const QString newFilePath = ensureShareableFile(filePath, false);
-    if (newFilePath.isEmpty())
-    {
-        Q_EMIT shareError(requestId, QString("Cannot edit file: %1").arg(filePath));
-        return;
-    }
-
-    mCurrentFilePath = newFilePath;
-    QFileInfo fileInfo = QFileInfo(mCurrentFilePath);
-
-    mLastModified = fileInfo.lastModified().toSecsSinceEpoch();
-    qDebug() << "LAST MODIFIED: " << mLastModified;
-
-    QJniObject jsPath = QJniObject::fromString(newFilePath);
-    QJniObject jsTitle = QJniObject::fromString(title);
-    QJniObject jsMimeType = QJniObject::fromString(mimeType);
-
-    jboolean ok = QJniObject::callStaticMethod<jboolean>("io/emeric/mobilesharing/QShareUtils",
-                                                         "editFile",
-                                                         "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;I)Z",
-                                                         jsPath.object<jstring>(), jsTitle.object<jstring>(),
-                                                         jsMimeType.object<jstring>(), requestId);
-
     if (!ok)
     {
         qWarning() << "Unable to resolve activity from Java";
@@ -367,51 +300,6 @@ void AndroidShareUtils::onSaveResult(int requestCode, bool success, bool cancele
     else
     {
         Q_EMIT shareError(requestCode, "Save: could not write the file to the chosen location");
-    }
-}
-
-/* ************************************************************************** */
-
-// used from Activity.java onActivityResult()
-void AndroidShareUtils::onActivityResult(int requestCode, int resultCode)
-{
-    qDebug() << "From Java Activity onActivityResult: " << requestCode << "ResultCode:" << resultCode;
-    processActivityResult(requestCode, resultCode);
-}
-
-/* ************************************************************************** */
-
-void AndroidShareUtils::processActivityResult(int requestCode, int resultCode)
-{
-    if (resultCode == RESULT_OK)
-    {
-        // only if edit is done
-        Q_EMIT shareEditDone(requestCode);
-    }
-    else if (resultCode == RESULT_CANCELED)
-    {
-        if (mIsEditMode)
-        {
-            // Attention: not all Apps will give you the correct ResultCode:
-            // Google Fotos will send OK if saved and CANCELED if canceled
-            // Some Apps always sends CANCELED even if you modified and Saved the File
-            // so you should check the modified Timestamp of the File to know if
-            // you should Q_EMIT shareEditDone() or shareFinished() !!!
-            QFileInfo fileInfo = QFileInfo(mCurrentFilePath);
-            qint64 currentModified = fileInfo.lastModified().toSecsSinceEpoch();
-            qDebug() << "CURRENT MODIFIED: " << currentModified;
-            if (currentModified > mLastModified)
-            {
-                Q_EMIT shareEditDone(requestCode);
-                return;
-            }
-        }
-        Q_EMIT shareFinished(requestCode);
-    }
-    else
-    {
-        qDebug() << "wrong result code: " << resultCode << " from request: " << requestCode;
-        Q_EMIT shareError(requestCode, "Share: an Error occured");
     }
 }
 

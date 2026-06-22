@@ -37,13 +37,11 @@ public:
     explicit IosShareUtils(QObject *parent = 0);
 
     bool checkMimeTypeView(const QString &mimeType);
-    bool checkMimeTypeEdit(const QString &mimeType);
 
     void sendText(const QString &text, const QString &subject, const QUrl &url);
 
     void sendFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId, bool move);
     void viewFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId);
-    void editFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId);
 
     void saveFile(const QString &filePath, const QString &suggestedName, const QString &mimeType, const int &requestId);
     void openFile();

@@ -25,31 +25,22 @@ package io.emeric.mobilesharing;
 
 import java.lang.String;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.Collections;
 
 import android.util.Log;
 import android.net.Uri;
-import android.os.Parcelable;
-import android.os.Build;
 import android.database.Cursor;
 import android.provider.OpenableColumns;
-import android.provider.MediaStore;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.Context;
 import android.content.ContentResolver;
-import android.content.pm.ResolveInfo;
-import android.content.pm.PackageManager;
 import android.webkit.MimeTypeMap;
 import androidx.core.content.FileProvider;
 
@@ -57,11 +48,6 @@ public class QShareUtils
 {
     // store the app main activity
     private static Activity m_activity = null;
-
-    // reference android:authorities as defined in AndroidManifest.xml FileProvider section
-    // resolved dynamically from the running app by the setActivity() call below,
-    // so it always matches "${applicationId}.fileprovider" with no manual editing
-    private static String AUTHORITY = "";
 
     protected QShareUtils() {
        //Log.d("QShareUtils", "QShareUtils()");
@@ -71,9 +57,6 @@ public class QShareUtils
         m_activity = activity;
         if (m_activity == null) {
             Log.d("QShareUtils", "Activity is null");
-        } else {
-            AUTHORITY = m_activity.getPackageName() + ".fileprovider";
-            Log.d("QShareUtils", AUTHORITY);
         }
     }
 
@@ -94,27 +77,6 @@ public class QShareUtils
             return true;
         } else {
             Log.d("QShareUtils", " checkMime() sorry - no App available to View");
-        }
-        return false;
-    }
-
-    public static boolean checkMimeTypeEdit(String mimeType) {
-        if (m_activity == null) return false;
-
-        Intent myIntent = new Intent();
-        myIntent.setAction(Intent.ACTION_EDIT);
-        // without an URI resolve always fails
-        // an empty URI allows to resolve the Activity
-        File fileToShare = new File("");
-        Uri uri = Uri.fromFile(fileToShare);
-        myIntent.setDataAndType(uri, mimeType);
-
-        // Verify that the intent will resolve to an activity
-        if (myIntent.resolveActivity(m_activity.getPackageManager()) != null) {
-            Log.d("QShareUtils", " checkMime() yes - we can go on and Edit");
-            return true;
-        } else {
-            Log.d("QShareUtils", " checkMime() sorry - no App available to Edit");
         }
         return false;
     }
@@ -141,108 +103,6 @@ public class QShareUtils
             Log.d("QShareUtils", " sendText() no app to handle ACTION_SEND - " + e);
             return false;
         }
-    }
-
-    // thx @oxied and @pooks for the idea: https://stackoverflow.com/a/18835895/135559
-    // theIntent is already configured with all needed properties and flags
-    // so we only have to add the packageName of targeted app
-    public static boolean createCustomChooserAndStartActivity(Intent theIntent, String title, int requestId, Uri uri) {
-        if (m_activity == null) return false;
-        final Context context = m_activity;
-
-        final PackageManager packageManager = context.getPackageManager();
-
-        // MATCH_DEFAULT_ONLY: Resolution and querying flag. if set, only filters that support the CATEGORY_DEFAULT will be considered for matching.
-        // Check if there is a default app for this type of content.
-        ResolveInfo defaultAppInfo = packageManager.resolveActivity(theIntent, PackageManager.MATCH_DEFAULT_ONLY);
-        if (defaultAppInfo == null) {
-            Log.d("QShareUtils", title + " PackageManager cannot resolve Activity");
-            return false;
-        }
-
-        // had to remove this check - there can be more Activity names, per ex
-        // com.google.android.apps.docs.editors.kix.quickword.QuickWordDocumentOpenerActivityAlias
-        // if (!defaultAppInfo.activityInfo.name.endsWith("ResolverActivity") && !defaultAppInfo.activityInfo.name.endsWith("EditActivity")) {
-            // Log.d("QShareUtils", title + " defaultAppInfo not Resolver or EditActivity: " + defaultAppInfo.activityInfo.name);
-            // return false;
-        //}
-
-        // Retrieve all apps for our intent. Check if there are any apps returned
-        List<ResolveInfo> appInfoList = packageManager.queryIntentActivities(theIntent, PackageManager.MATCH_DEFAULT_ONLY);
-        if (appInfoList.isEmpty()) {
-            Log.d("QShareUtils", title + " appInfoList.isEmpty");
-            return false;
-        }
-        Log.d("QShareUtils", title + " appInfoList: " + appInfoList.size());
-
-        // Sort in alphabetical order
-        Collections.sort(appInfoList, new Comparator<ResolveInfo>() {
-            @Override
-            public int compare(ResolveInfo first, ResolveInfo second) {
-                String firstName = first.loadLabel(packageManager).toString();
-                String secondName = second.loadLabel(packageManager).toString();
-                return firstName.compareToIgnoreCase(secondName);
-            }
-        });
-
-        List<Intent> targetedIntents = new ArrayList<Intent>();
-        // Filter itself and create intent with the rest of the apps.
-        for (ResolveInfo appInfo : appInfoList) {
-            // get the target PackageName
-            String targetPackageName = appInfo.activityInfo.packageName;
-            // we don't want to share with our own app
-            // in fact sharing with own app with resultCode will crash because doesn't work well with launch mode 'singleInstance'
-            if (targetPackageName.equals(context.getPackageName())) {
-                continue;
-            }
-            // if you have a blacklist of apps please exclude them here
-
-            // we create the targeted Intent based on our already configured Intent
-            Intent targetedIntent = new Intent(theIntent);
-            // now add the target packageName so this Intent will only find the one specific App
-            targetedIntent.setPackage(targetPackageName);
-            // collect all these targetedIntents
-            targetedIntents.add(targetedIntent);
-
-            // did some changes to make it run with API 30+ and Android 13 devices.
-            // removed KitKat check and added queries to AndroidManifest
-            // thx: https://forum.qt.io/topic/127170/android-11-qdir-mkdir-does-not-always-work/11
-            context.grantUriPermission(targetPackageName, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
-        }
-
-        // check if there are apps found for our Intent to avoid that there was only our own removed app before
-        if (targetedIntents.isEmpty()) {
-            Log.d("QShareUtils", title + " targetedIntents.isEmpty");
-            return false;
-        }
-
-        // now we can create our Intent with custom Chooser
-        // we need all collected targetedIntents as EXTRA_INITIAL_INTENTS
-        // we're using the last targetedIntent as initializing Intent, because
-        // chooser adds its initializing intent to the end of EXTRA_INITIAL_INTENTS :)
-        Intent chooserIntent = Intent.createChooser(targetedIntents.remove(targetedIntents.size() - 1), title);
-        if (targetedIntents.isEmpty()) {
-            Log.d("QShareUtils", title + " only one Intent left for Chooser");
-        } else {
-            chooserIntent.putExtra(Intent.EXTRA_INITIAL_INTENTS, targetedIntents.toArray(new Parcelable[] {}));
-        }
-        //chooserIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION); // ?
-
-        // Verify that the intent will resolve to an activity
-        if (chooserIntent.resolveActivity(m_activity.getPackageManager()) != null) {
-            if (requestId > 0) {
-                // Mark this code as ours so QShareActivity.onActivityResult() consumes its result (and ignores results from Qt's own dialogs)
-                if (m_activity instanceof QShareActivity) {
-                    QShareActivity.ownRequestCodes.add(requestId);
-                }
-                m_activity.startActivityForResult(chooserIntent, requestId);
-            } else {
-                m_activity.startActivity(chooserIntent);
-            }
-            return true;
-        }
-        Log.d("QShareUtils", title + " Chooser Intent not resolved. Should never happen");
-        return false;
     }
 
     public static boolean sendFile(String filePath, String title, String mimeType, int requestId) {
@@ -294,42 +154,6 @@ public class QShareUtils
         context.startActivity(Intent.createChooser(shareIntent, "View file using"));
 
         return true;
-    }
-
-    public static boolean editFile(String filePath, String title, String mimeType, int requestId) {
-        if (m_activity == null) return false;
-        final Context context = m_activity;
-        if (context == null) return false;
-
-        Intent editIntent = new Intent();
-        editIntent.setAction(Intent.ACTION_EDIT);
-
-        File fileToShare = new File(filePath);
-
-        // Using FileProvider you must get the URI from FileProvider using your AUTHORITY
-        // Uri uri = Uri.fromFile(fileToShare);
-        Uri uri;
-        try {
-            uri = FileProvider.getUriForFile(m_activity, AUTHORITY, fileToShare);
-        } catch (IllegalArgumentException e) {
-            Log.d("QShareUtils", " editFile - cannot be shared: " + filePath);
-            return false;
-        }
-        Log.d("QShareUtils", " editFile " + uri.toString());
-
-        if (mimeType == null || mimeType.isEmpty()) {
-            // fallback if mimeType not set
-            mimeType = m_activity.getContentResolver().getType(uri);
-            Log.d("QShareUtils", " editFile guessed mimeType: " + mimeType);
-        } else {
-            Log.d("QShareUtils", " editFile w mimeType: " + mimeType);
-        }
-
-        editIntent.setDataAndType(uri, mimeType);
-        editIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-        editIntent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
-
-        return createCustomChooserAndStartActivity(editIntent, title, requestId, uri);
     }
 
     // ------------------------------------------------------------------------

@@ -244,8 +244,7 @@ Where the shared copy lives, and its lifecycle:
 | Copy/move lands in    | `<cache>/MobileSharing/outgoing/<name>`               | N/A (`move` is a no-op; delete the file yourself after `onShareFinished` if needed) |
 | Lifecycle             | same cache root as incoming: **wiped on next launch** | — |
 
-`viewFile()` / `editFile()` get the same copy-if-needed safety net (no `move` option;
-`editFile` keeps editing the in-place file when it's already in the shared cache area).
+`viewFile()` gets the same copy-if-needed safety net (no `move` option).
 
 ### Receiving files
 

@@ -47,8 +47,6 @@ public class QShareActivity extends QtActivity
     // (registered from C++ via QJniEnvironment::registerNativeMethods, see MobileSharing_android.cpp)
     // an incoming file, already copied into our cache dir:
     public static native void setFileReceived(String filePath);
-    // result of an outgoing share started with startActivityForResult:
-    public static native void fireActivityResult(int requestCode, int resultCode);
     // result of a saveFile() flow (ACTION_CREATE_DOCUMENT + ContentResolver write):
     public static native void fireSaveResult(int requestCode, boolean success, boolean canceled);
 
@@ -61,12 +59,6 @@ public class QShareActivity extends QtActivity
     // else (like its own QFileDialog), so we don't emit spurious share signals.
     public static final Set<Integer> ownRequestCodes = Collections.synchronizedSet(new HashSet<Integer>());
 
-    // Use a custom Chooser without providing own App as share target !
-    // see QShareUtils.java createCustomChooserAndStartActivity()
-    // Selecting your own App as target could cause AndroidOS to call
-    // onCreate() instead of onNewIntent()
-    // and then you are in trouble because we're using 'singleInstance' as LaunchMode
-    // more details: my blog at Qt
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -94,43 +86,27 @@ public class QShareActivity extends QtActivity
         super.onDestroy();
     }
 
-    // Results for activities we launched with startActivityForResult() arrive here and are
-    // forwarded to C++ through the fireActivityResult()/fireSaveResult() JNI callbacks below.
+    // Results for activities we launched with startActivityForResult() arrive here. Only
+    // saveFile() (ACTION_CREATE_DOCUMENT) uses this now; its result is handed to C++ through
+    // the fireSaveResult() JNI callback. Everything else (e.g. Qt's own QFileDialog) was
+    // already dispatched to Qt by super.onActivityResult() and must be left untouched.
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         Log.d("QShareActivity", " onActivityResult() requestCode: " + requestCode);
         super.onActivityResult(requestCode, resultCode, data);
 
-        // Only consume results for requests this module started. Everything else was
-        // already dispatched to Qt by super.onActivityResult() above (results from
-        // Qt's own QFileDialog/FileDialog); firing fireActivityResult() for those would
-        // emit spurious shareFinished()/shareError() signals
+        // Only consume results for requests this module started (tracked in ownRequestCodes);
+        // consuming Qt's own dialog results would be wrong.
         if (!ownRequestCodes.remove(requestCode)) {
             return;
         }
 
-        // saveFile() flow (ACTION_CREATE_DOCUMENT): stream our source into the chosen
-        // destination URI here, then report success/cancel back natively. The result Intent
-        // (unlike a plain share) carries the destination, so we must handle it before the
-        // generic fireActivityResult() path below.
+        // saveFile() flow (ACTION_CREATE_DOCUMENT): stream our source into the user-chosen
+        // destination URI, then report success/cancel back natively via fireSaveResult().
         if (QShareUtils.isPendingSave(requestCode)) {
             Uri destUri = (resultCode == RESULT_OK && data != null) ? data.getData() : null;
             QShareUtils.completeSave(getContentResolver(), requestCode, destUri);
-            return;
         }
-
-        // Check which request we're responding to
-        if (resultCode == RESULT_OK) {
-            Log.d("QShareActivity", " onActivityResult() requestCode SUCCESS");
-        } else {
-            Log.d("QShareActivity", " onActivityResult() requestCode CANCEL");
-        }
-        // hint: result comes back too fast for Action SEND
-        // if you want to delete/move the File add a Timer w 500ms delay
-        // see Example App main.qml - delayDeleteTimer
-        // if you want to revoke permissions for older OS
-        // it makes sense also do this after the delay
-        fireActivityResult(requestCode, resultCode);
     }
 
     // if we are opened from other apps:

@@ -48,10 +48,7 @@ MobileSharing::MobileSharing(QObject *parent) : QObject(parent)
     mPlatformShareUtils = new PlatformShareUtils(this);
 #endif
 
-    bool connectResult = connect(mPlatformShareUtils, &PlatformShareUtils::shareEditDone, this, &MobileSharing::onShareEditDone);
-    Q_ASSERT(connectResult);
-
-    connectResult = connect(mPlatformShareUtils, &PlatformShareUtils::shareFinished, this, &MobileSharing::onShareFinished);
+    bool connectResult = connect(mPlatformShareUtils, &PlatformShareUtils::shareFinished, this, &MobileSharing::onShareFinished);
     Q_ASSERT(connectResult);
 
     connectResult = connect(mPlatformShareUtils, &PlatformShareUtils::shareNoAppAvailable, this, &MobileSharing::onShareNoAppAvailable);
@@ -131,11 +128,6 @@ bool MobileSharing::checkMimeTypeView(const QString &mimeType)
     return mPlatformShareUtils->checkMimeTypeView(mimeType);
 }
 
-bool MobileSharing::checkMimeTypeEdit(const QString &mimeType)
-{
-    return mPlatformShareUtils->checkMimeTypeEdit(mimeType);
-}
-
 void MobileSharing::sendText(const QString &text, const QString &subject, const QUrl &url)
 {
     mPlatformShareUtils->sendText(text, subject, url);
@@ -149,11 +141,6 @@ void MobileSharing::sendFile(const QString &filePath, const QString &title, cons
 void MobileSharing::viewFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId)
 {
     mPlatformShareUtils->viewFile(filePath, title, mimeType, requestId);
-}
-
-void MobileSharing::editFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId)
-{
-    mPlatformShareUtils->editFile(filePath, title, mimeType, requestId);
 }
 
 void MobileSharing::saveFile(const QString &filePath, const QString &suggestedName, const QString &mimeType, const int &requestId)
@@ -247,11 +234,6 @@ const QMimeDatabase &MobileSharing::getMimeDatabase() const
 }
 
 /* ************************************************************************** */
-
-void MobileSharing::onShareEditDone(int requestCode)
-{
-    Q_EMIT shareEditDone(requestCode);
-}
 
 void MobileSharing::onShareFinished(int requestCode)
 {

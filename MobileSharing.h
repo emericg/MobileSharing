@@ -60,7 +60,6 @@ class PlatformShareUtils : public QObject
     Q_OBJECT
 
 signals:
-    void shareEditDone(int requestCode);
     void shareFinished(int requestCode);
     void shareNoAppAvailable(int requestCode);
     void shareError(int requestCode, QString message);
@@ -78,10 +77,6 @@ public:
         qDebug() << "check view for" << mimeType;
         return true;
     }
-    virtual bool checkMimeTypeEdit(const QString &mimeType) {
-        qDebug() << "check edit for" << mimeType;
-        return true;
-    }
 
     virtual void sendText(const QString &text, const QString &subject, const QUrl &url) {
         qDebug() << text << subject << url.url();
@@ -90,9 +85,6 @@ public:
         qDebug() << filePath << " - " << title << "requestId: " << requestId << " - " << mimeType << " - " << move;
     }
     virtual void viewFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId) {
-        qDebug() << filePath << " - " << title << "requestId: " << requestId << " - " << mimeType;
-    }
-    virtual void editFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId) {
         qDebug() << filePath << " - " << title << "requestId: " << requestId << " - " << mimeType;
     }
     virtual void saveFile(const QString &filePath, const QString &suggestedName, const QString &mimeType, const int &requestId) {
@@ -131,7 +123,6 @@ private slots:
     void onApplicationStateChanged(Qt::ApplicationState state);
 
 signals:
-    void shareEditDone(int requestCode);
     void shareFinished(int requestCode);
     void shareNoAppAvailable(int requestCode);
     void shareError(int requestCode, QString message);
@@ -154,7 +145,6 @@ signals:
     void fileSaved(int requestCode);
 
 public slots:
-    void onShareEditDone(int requestCode);
     void onShareFinished(int requestCode);
     void onShareNoAppAvailable(int requestCode);
     void onShareError(int requestCode, const QString &message);
@@ -165,7 +155,7 @@ public:
     explicit MobileSharing(QObject *parent = nullptr);
 
     Q_INVOKABLE bool checkMimeTypeView(const QString &mimeType);
-    Q_INVOKABLE bool checkMimeTypeEdit(const QString &mimeType);
+
     const QMimeDatabase &getMimeDatabase() const;
 
     //! Explicitely reject an incoming file: delete the cached copy (only within our cache subdir).
@@ -179,8 +169,8 @@ public:
 
     Q_INVOKABLE void sendFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId, bool move = false);
     Q_INVOKABLE void viewFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId);
-    Q_INVOKABLE void editFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId);
 
+    /*!
     Q_INVOKABLE void saveFile(const QString &filePath, const QString &suggestedName, const QString &mimeType, const int &requestId);
 
     Q_INVOKABLE void openFile();
