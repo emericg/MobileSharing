@@ -48,22 +48,14 @@ MobileSharing::MobileSharing(QObject *parent) : QObject(parent)
     mPlatformShareUtils = new PlatformShareUtils(this);
 #endif
 
-    bool connectResult = connect(mPlatformShareUtils, &PlatformShareUtils::shareFinished, this, &MobileSharing::onShareFinished);
-    Q_ASSERT(connectResult);
+    // Forward most backend signals straight through to our identically-named public signals.
+    connect(mPlatformShareUtils, &PlatformShareUtils::shareFinished, this, &MobileSharing::shareFinished);
+    connect(mPlatformShareUtils, &PlatformShareUtils::shareNoAppAvailable, this, &MobileSharing::shareNoAppAvailable);
+    connect(mPlatformShareUtils, &PlatformShareUtils::shareError, this, &MobileSharing::shareError);
+    connect(mPlatformShareUtils, &PlatformShareUtils::fileSaved, this, &MobileSharing::fileSaved);
 
-    connectResult = connect(mPlatformShareUtils, &PlatformShareUtils::shareNoAppAvailable, this, &MobileSharing::onShareNoAppAvailable);
-    Q_ASSERT(connectResult);
-
-    connectResult = connect(mPlatformShareUtils, &PlatformShareUtils::shareError, this, &MobileSharing::onShareError);
-    Q_ASSERT(connectResult);
-
-    connectResult = connect(mPlatformShareUtils, &PlatformShareUtils::fileReceived, this, &MobileSharing::onFileReceived);
-    Q_ASSERT(connectResult);
-
-    connectResult = connect(mPlatformShareUtils, &PlatformShareUtils::fileSaved, this, &MobileSharing::onFileSaved);
-    Q_ASSERT(connectResult);
-
-    Q_UNUSED(connectResult)
+    // fileReceived first needs relocating into our cache dir, so it goes through a slot.
+    connect(mPlatformShareUtils, &PlatformShareUtils::fileReceived, this, &MobileSharing::onFileReceived);
 
     // Module-owned temporary cache directory (cache/MobileSharing) with incoming/ and outgoing/ subdirs.
     mWorkingDir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + "/MobileSharing";
@@ -133,17 +125,17 @@ void MobileSharing::sendText(const QString &text, const QString &subject, const 
     mPlatformShareUtils->sendText(text, subject, url);
 }
 
-void MobileSharing::sendFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId, bool move)
+void MobileSharing::sendFile(const QString &filePath, const QString &title, const QString &mimeType, int requestId, bool move)
 {
     mPlatformShareUtils->sendFile(filePath, title, mimeType, requestId, move);
 }
 
-void MobileSharing::viewFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId)
+void MobileSharing::viewFile(const QString &filePath, const QString &title, const QString &mimeType, int requestId)
 {
     mPlatformShareUtils->viewFile(filePath, title, mimeType, requestId);
 }
 
-void MobileSharing::saveFile(const QString &filePath, const QString &suggestedName, const QString &mimeType, const int &requestId)
+void MobileSharing::saveFile(const QString &filePath, const QString &suggestedName, const QString &mimeType, int requestId)
 {
     if (!QFileInfo::exists(filePath))
     {
@@ -231,28 +223,6 @@ void MobileSharing::importFile(const QUrl &source)
 const QMimeDatabase &MobileSharing::getMimeDatabase() const
 {
     return mPlatformShareUtils->getMimeDatabase();
-}
-
-/* ************************************************************************** */
-
-void MobileSharing::onShareFinished(int requestCode)
-{
-    Q_EMIT shareFinished(requestCode);
-}
-
-void MobileSharing::onShareNoAppAvailable(int requestCode)
-{
-    Q_EMIT shareNoAppAvailable(requestCode);
-}
-
-void MobileSharing::onShareError(int requestCode, const QString &message)
-{
-    Q_EMIT shareError(requestCode, message);
-}
-
-void MobileSharing::onFileSaved(int requestCode)
-{
-    Q_EMIT fileSaved(requestCode);
 }
 
 /* ************************************************************************** */

@@ -46,10 +46,10 @@ public:
 
     void sendText(const QString &text, const QString &subject, const QUrl &url);
 
-    void sendFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId, bool move);
-    void viewFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId);
+    void sendFile(const QString &filePath, const QString &title, const QString &mimeType, int requestId, bool move);
+    void viewFile(const QString &filePath, const QString &title, const QString &mimeType, int requestId);
 
-    void saveFile(const QString &filePath, const QString &suggestedName, const QString &mimeType, const int &requestId);
+    void saveFile(const QString &filePath, const QString &suggestedName, const QString &mimeType, int requestId);
     void openFile();
 
     /*!
@@ -60,7 +60,7 @@ public:
      *
      * Emits fileSaved() on success, shareFinished() on cancel, shareError() otherwise.
      */
-    void handleSaveResult(const int &requestId, bool success, bool canceled);
+    void handleSaveResult(int requestId, bool success, bool canceled);
 
     /*!
      * \brief Called by the import-picker delegate with the (sandbox-local, readable) picked file.
@@ -76,7 +76,7 @@ public:
      *
      * Emits shareFinished().
      */
-    void handlePreviewDismissed(const int &requestId);
+    void handlePreviewDismissed(int requestId);
 
 public slots:
     /*!

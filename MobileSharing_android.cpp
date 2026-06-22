@@ -95,20 +95,16 @@ AndroidShareUtils::AndroidShareUtils(QObject *parent) : PlatformShareUtils(paren
 
     if (jni.isValid())
     {
-        qDebug() << "Init Activity of ShareUtils";
-        jni.callMethod<void>("setActivity",
-                             "(Landroid/app/Activity;)V",
+        qDebug() << "Init Activity of AndroidShareUtils";
+        jni.callMethod<void>("setActivity", "(Landroid/app/Activity;)V",
                              QNativeInterface::QAndroidApplication::context().object());
     }
 }
 
 AndroidShareUtils *AndroidShareUtils::getInstance()
 {
-    if (!mInstance)
-    {
-        mInstance = new AndroidShareUtils;
-    }
-
+    // Always created first by MobileSharing's constructor (which wires up the signals)
+    Q_ASSERT(mInstance);
     return mInstance;
 }
 
@@ -118,11 +114,10 @@ AndroidShareUtils *AndroidShareUtils::getInstance()
 bool AndroidShareUtils::checkMimeTypeView(const QString &mimeType)
 {
     QJniObject jsMime = QJniObject::fromString(mimeType);
-    jboolean verified = QJniObject::callStaticMethod<jboolean>(
-                            "io/emeric/mobilesharing/QShareUtils",
-                            "checkMimeTypeView",
-                            "(Ljava/lang/String;)Z",
-                            jsMime.object<jstring>());
+    jboolean verified = QJniObject::callStaticMethod<jboolean>("io/emeric/mobilesharing/QShareUtils",
+                                                               "checkMimeTypeView",
+                                                               "(Ljava/lang/String;)Z",
+                                                               jsMime.object<jstring>());
 
     //qDebug() << "View VERIFIED: " << mimeType << " - " << verified;
     return verified;
@@ -150,8 +145,7 @@ QString AndroidShareUtils::ensureShareableFile(const QString &filePath, bool mov
     }
 
     // Already serviceable and the caller keeps ownership -> use it in place.
-    if (!move && isShareablePath(fi.absoluteFilePath()))
-        return fi.absoluteFilePath();
+    if (!move && isShareablePath(fi.absoluteFilePath())) return fi.absoluteFilePath();
 
     const QString outDir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + "/MobileSharing/outgoing";
     QDir().mkpath(outDir);
@@ -191,7 +185,7 @@ void AndroidShareUtils::sendText(const QString &text, const QString &subject, co
     if (!ok)
     {
         qWarning() << "Unable to resolve activity from Java";
-        emit shareNoAppAvailable(0);
+        Q_EMIT shareNoAppAvailable(0);
     }
 }
 
@@ -202,7 +196,7 @@ void AndroidShareUtils::sendText(const QString &text, const QString &subject, co
  * We need the Request Id and Result Id to control our workflow
  */
 void AndroidShareUtils::sendFile(const QString &filePath, const QString &title,
-                                 const QString &mimeType, const int &requestId, bool move)
+                                 const QString &mimeType, int requestId, bool move)
 {
     // Make sure the path is something FileProvider can serve (copy/move into our outgoing dir if needed).
     // 'move' just relocates throwaway files and deletes the original.
@@ -237,7 +231,7 @@ void AndroidShareUtils::sendFile(const QString &filePath, const QString &title,
  * We need the Request Id and Result Id to control our workflow
  */
 void AndroidShareUtils::viewFile(const QString &filePath, const QString &title,
-                                 const QString &mimeType, const int &requestId)
+                                 const QString &mimeType, int requestId)
 {
     const QString newFilePath = ensureShareableFile(filePath, false);
     if (newFilePath.isEmpty())
@@ -263,7 +257,7 @@ void AndroidShareUtils::viewFile(const QString &filePath, const QString &title,
 /* ************************************************************************** */
 
 void AndroidShareUtils::saveFile(const QString &filePath, const QString &suggestedName,
-                                 const QString &mimeType, const int &requestId)
+                                 const QString &mimeType, int requestId)
 {
     // Hand the source path + suggested name to Java, which launches ACTION_CREATE_DOCUMENT
     // and (on result) streams our bytes into the chosen destination via the ContentResolver.

@@ -86,7 +86,8 @@ public class QShareUtils
 
         Intent sendIntent = new Intent();
         sendIntent.setAction(Intent.ACTION_SEND);
-        sendIntent.putExtra(Intent.EXTRA_TEXT, text + " " + url);
+        String body = (url == null || url.isEmpty()) ? text : (text + " " + url);
+        sendIntent.putExtra(Intent.EXTRA_TEXT, body);
         sendIntent.putExtra(Intent.EXTRA_SUBJECT, subject);
         sendIntent.setType("text/plain");
 
@@ -148,7 +149,6 @@ public class QShareUtils
         Intent shareIntent = new Intent(Intent.ACTION_VIEW);
         shareIntent.setDataAndType(fileUri, mimeType);
         shareIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        shareIntent.putExtra(Intent.EXTRA_STREAM, fileUri);
         shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
 
         context.startActivity(Intent.createChooser(shareIntent, "View file using"));

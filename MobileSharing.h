@@ -81,13 +81,13 @@ public:
     virtual void sendText(const QString &text, const QString &subject, const QUrl &url) {
         qDebug() << text << subject << url.url();
     }
-    virtual void sendFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId, bool move) {
+    virtual void sendFile(const QString &filePath, const QString &title, const QString &mimeType, int requestId, bool move) {
         qDebug() << filePath << " - " << title << "requestId: " << requestId << " - " << mimeType << " - " << move;
     }
-    virtual void viewFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId) {
+    virtual void viewFile(const QString &filePath, const QString &title, const QString &mimeType, int requestId) {
         qDebug() << filePath << " - " << title << "requestId: " << requestId << " - " << mimeType;
     }
-    virtual void saveFile(const QString &filePath, const QString &suggestedName, const QString &mimeType, const int &requestId) {
+    virtual void saveFile(const QString &filePath, const QString &suggestedName, const QString &mimeType, int requestId) {
         qDebug() << filePath << " - " << suggestedName << "requestId: " << requestId << " - " << mimeType;
     }
     virtual void openFile() {
@@ -175,12 +175,8 @@ signals:
     void fileSaved(int requestCode);
 
 public slots:
-    // Internal: wired to the active platform backend's signals. Not intended to be called by host code.
-    void onShareFinished(int requestCode);
-    void onShareNoAppAvailable(int requestCode);
-    void onShareError(int requestCode, const QString &message);
+    // Internal: applies the incoming-file relocation into our cache, then re-emits fileReceived(). Not intended to be called by host code.
     void onFileReceived(const QString &filePath);
-    void onFileSaved(int requestCode);
 
 public:
     explicit MobileSharing(QObject *parent = nullptr);
@@ -245,7 +241,7 @@ public:
      * \param move: If true, the file is relocated into the module's (session-wiped) outgoing dir instead of copied,
      *              useful for throwaway files. No-op on iOS.
      */
-    Q_INVOKABLE void sendFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId, bool move = false);
+    Q_INVOKABLE void sendFile(const QString &filePath, const QString &title, const QString &mimeType, int requestId, bool move = false);
 
     /*!
      * \brief Open a file in another application for viewing.
@@ -254,7 +250,7 @@ public:
      * \param mimeType: The file's mime type, or "*" if unknown.
      * \param requestId: Caller-chosen id, echoed back in shareFinished() / shareError().
      */
-    Q_INVOKABLE void viewFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId);
+    Q_INVOKABLE void viewFile(const QString &filePath, const QString &title, const QString &mimeType, int requestId);
 
     /*!
      * \brief Save (export) a file to a user-chosen location via the OS file picker.
@@ -269,7 +265,7 @@ public:
      *
      * Requires the host to run QShareActivity.
      */
-    Q_INVOKABLE void saveFile(const QString &filePath, const QString &suggestedName, const QString &mimeType, const int &requestId);
+    Q_INVOKABLE void saveFile(const QString &filePath, const QString &suggestedName, const QString &mimeType, int requestId);
 
     /*!
      * \brief Open (import) a file through the OS native file picker.

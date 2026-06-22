@@ -24,14 +24,13 @@
 #import "MobileSharing_ios.h"
 
 #import <UIKit/UIKit.h>
-#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import <QuickLook/QuickLook.h>
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 #import <QGuiApplication>
-#import <QQuickWindow>
 #import <QDesktopServices>
-#import <QUrl>
 #import <QFileInfo>
+#import <QUrl>
 
 /* ************************************************************************** */
 
@@ -196,7 +195,7 @@ void IosShareUtils::sendText(const QString &text, const QString &subject, const 
 
     UIActivityViewController *activityController = [[UIActivityViewController alloc] initWithActivityItems:sharingItems applicationActivities:nil];
     if (qtUIViewController == nil) {
-        emit shareError(0, "Cannot share: no root view controller");
+        Q_EMIT shareError(0, "Cannot share: no root view controller");
         [activityController release];
         return;
     }
@@ -206,9 +205,9 @@ void IosShareUtils::sendText(const QString &text, const QString &subject, const 
                                                       NSArray *returnedItems, NSError *activityError) {
 #pragma unused (activityType, returnedItems)
         if (activityError) {
-            emit shareError(0, QString::fromNSString(activityError.localizedDescription));
+            Q_EMIT shareError(0, QString::fromNSString(activityError.localizedDescription));
         } else if (completed) {
-            emit shareFinished(0);
+            Q_EMIT shareFinished(0);
         } else {
             // dismissed without sharing -> stay silent
         }
@@ -223,7 +222,7 @@ void IosShareUtils::sendText(const QString &text, const QString &subject, const 
     [activityController release];
 }
 
-void IosShareUtils::sendFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId, bool move) {
+void IosShareUtils::sendFile(const QString &filePath, const QString &title, const QString &mimeType, int requestId, bool move) {
 #pragma unused (title, mimeType, move)
     // 'move' is a no-op on iOS: any file in the app sandbox is shareable as-is (no FileProvider
     // equivalent). Throwaway-file cleanup is left to the app (e.g. delete after shareFinished).
@@ -236,7 +235,7 @@ void IosShareUtils::sendFile(const QString &filePath, const QString &title, cons
     UIActivityViewController *activityController =
         [[UIActivityViewController alloc] initWithActivityItems:@[fileUrl] applicationActivities:nil];
     if (qtUIViewController == nil) {
-        emit shareError(requestId, "Cannot share: no root view controller");
+        Q_EMIT shareError(requestId, "Cannot share: no root view controller");
         [activityController release];
         return;
     }
@@ -246,9 +245,9 @@ void IosShareUtils::sendFile(const QString &filePath, const QString &title, cons
                                                       NSArray *returnedItems, NSError *activityError) {
 #pragma unused (activityType, returnedItems)
         if (activityError) {
-            emit shareError(requestId, QString::fromNSString(activityError.localizedDescription));
+            Q_EMIT shareError(requestId, QString::fromNSString(activityError.localizedDescription));
         } else if (completed) {
-            emit shareFinished(requestId);
+            Q_EMIT shareFinished(requestId);
         }
         // dismissed without sharing -> stay silent
     };
@@ -262,20 +261,20 @@ void IosShareUtils::sendFile(const QString &filePath, const QString &title, cons
     [activityController release];
 }
 
-void IosShareUtils::viewFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId) {
+void IosShareUtils::viewFile(const QString &filePath, const QString &title, const QString &mimeType, int requestId) {
 #pragma unused (title, mimeType)
     // In-app file preview via QuickLook.
     // Unsupported types still present (QLPreviewController shows a placeholder with its own share button), so no fallback is needed here.
 
     NSString *path = filePath.toNSString();
     if (![[NSFileManager defaultManager] fileExistsAtPath:path]) {
-        emit shareError(requestId, QString("Cannot view file: %1").arg(filePath));
+        Q_EMIT shareError(requestId, QString("Cannot view file: %1").arg(filePath));
         return;
     }
 
     UIViewController *root = topViewController();
     if (root == nil) {
-        emit shareError(requestId, "Cannot view file: no root view controller");
+        Q_EMIT shareError(requestId, "Cannot view file: no root view controller");
         return;
     }
 
@@ -292,13 +291,13 @@ void IosShareUtils::viewFile(const QString &filePath, const QString &title, cons
     [preview release];
 }
 
-void IosShareUtils::saveFile(const QString &filePath, const QString &suggestedName, const QString &mimeType, const int &requestId) {
+void IosShareUtils::saveFile(const QString &filePath, const QString &suggestedName, const QString &mimeType, int requestId) {
 #pragma unused (mimeType)
 
     NSString *srcPath = filePath.toNSString();
     NSFileManager *fm = [NSFileManager defaultManager];
     if (![fm fileExistsAtPath:srcPath]) {
-        emit shareError(requestId, QString("Cannot save file: %1").arg(filePath));
+        Q_EMIT shareError(requestId, QString("Cannot save file: %1").arg(filePath));
         return;
     }
 
@@ -330,7 +329,7 @@ void IosShareUtils::saveFile(const QString &filePath, const QString &suggestedNa
     if (root != nil) {
         [root presentViewController:picker animated:YES completion:nil];
     } else {
-        emit shareError(requestId, "Cannot save file: no root view controller");
+        Q_EMIT shareError(requestId, "Cannot save file: no root view controller");
         [delegate cleanup];
         [delegate release];
     }
@@ -350,7 +349,7 @@ void IosShareUtils::openFile() {
     if (root != nil) {
         [root presentViewController:picker animated:YES completion:nil];
     } else {
-        emit shareError(0, "Cannot open file: no root view controller");
+        Q_EMIT shareError(0, "Cannot open file: no root view controller");
         [delegate release];
     }
     [picker release];
@@ -361,31 +360,31 @@ void IosShareUtils::handleImportedFile(const QString &filePath) {
     // MobileSharing::onFileReceived() then relocates it into the cache's MobileSharing/incoming/ dir.
     QFileInfo fi(filePath);
     if (fi.exists() && fi.isFile()) {
-        emit fileReceived(filePath);
+        Q_EMIT fileReceived(filePath);
     } else {
-        emit shareError(0, QString("Open: imported file is not readable: %1").arg(filePath));
+        Q_EMIT shareError(0, QString("Open: imported file is not readable: %1").arg(filePath));
     }
 }
 
-void IosShareUtils::handleSaveResult(const int &requestId, bool success, bool canceled) {
+void IosShareUtils::handleSaveResult(int requestId, bool success, bool canceled) {
     if (success) {
-        emit fileSaved(requestId);
+        Q_EMIT fileSaved(requestId);
     } else if (canceled) {
-        emit shareFinished(requestId);
+        Q_EMIT shareFinished(requestId);
     } else {
-        emit shareError(requestId, "Save: could not export the file");
+        Q_EMIT shareError(requestId, "Save: could not export the file");
     }
 }
 
-void IosShareUtils::handlePreviewDismissed(const int &requestId) {
-    emit shareFinished(requestId);
+void IosShareUtils::handlePreviewDismissed(int requestId) {
+    Q_EMIT shareFinished(requestId);
 }
 
 void IosShareUtils::handleFileUrlReceived(const QUrl &url)
 {
     if (url.isEmpty()) {
         qWarning() << "handleFileUrlReceived: we got an empty URL";
-        emit shareError(0, "Empty URL received");
+        Q_EMIT shareError(0, "Empty URL received");
         return;
     }
 
@@ -395,10 +394,10 @@ void IosShareUtils::handleFileUrlReceived(const QUrl &url)
 
     if (QFileInfo::exists(localPath)) {
         // iOS delivers the files directly into the app's Inbox
-        emit fileReceived(localPath);
+        Q_EMIT fileReceived(localPath);
     } else {
         qWarning() << "handleFileUrlReceived: file does not exist:" << localPath;
-        emit shareError(0, QString("File does not exist: %1").arg(localPath));
+        Q_EMIT shareError(0, QString("File does not exist: %1").arg(localPath));
     }
 }
 

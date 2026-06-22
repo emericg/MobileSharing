@@ -60,7 +60,7 @@ class AndroidShareUtils : public PlatformShareUtils
 public:
     AndroidShareUtils(QObject *parent = nullptr);
 
-    //! Lazily-created process-wide singleton, used by the JNI bridges to reach this object.
+    //! The process-wide instance (set by the constructor), used by the JNI bridges to reach this object.
     static AndroidShareUtils *getInstance();
 
     //! Ask QShareActivity to deliver any intent that arrived before QML was ready (incoming share).
@@ -70,9 +70,9 @@ public:
 
     void sendText(const QString &text, const QString &subject, const QUrl &url) override;
 
-    void sendFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId, bool move) override;
-    void viewFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId) override;
-    void saveFile(const QString &filePath, const QString &suggestedName, const QString &mimeType, const int &requestId) override;
+    void sendFile(const QString &filePath, const QString &title, const QString &mimeType, int requestId, bool move) override;
+    void viewFile(const QString &filePath, const QString &title, const QString &mimeType, int requestId) override;
+    void saveFile(const QString &filePath, const QString &suggestedName, const QString &mimeType, int requestId) override;
 
     /*!
      * \brief Called from JNI (QShareActivity) once a saveFile() flow finished in Java.
