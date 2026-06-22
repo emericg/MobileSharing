@@ -29,6 +29,13 @@
 
 /* ************************************************************************** */
 
+/*!
+ * \brief Android backend for MobileSharing (JNI to QShareActivity / QShareUtils).
+ *
+ * Implements the PlatformShareUtils interface using Android intents (ACTION_SEND/VIEW/EDIT)
+ * and the Storage Access Framework (ACTION_CREATE_DOCUMENT / OPEN_DOCUMENT).
+ * It is a singleton: the JNI bridges in MobileSharing_android.cpp call back into getInstance().
+ */
 class AndroidShareUtils : public PlatformShareUtils
 {
     static AndroidShareUtils *mInstance;
@@ -52,8 +59,11 @@ class AndroidShareUtils : public PlatformShareUtils
 
 public:
     AndroidShareUtils(QObject *parent = nullptr);
+
+    //! Lazily-created process-wide singleton, used by the JNI bridges to reach this object.
     static AndroidShareUtils *getInstance();
 
+    //! Ask QShareActivity to deliver any intent that arrived before QML was ready (incoming share).
     void checkPendingIntents(const QString &workingDirPath) override;
 
     bool checkMimeTypeView(const QString &mimeType) override;

@@ -53,7 +53,7 @@
 /* ************************************************************************** */
 
 /*!
- * \brief The PlatformShareUtils class
+ * \brief Internal platform backend behind MobileSharing.
  */
 class PlatformShareUtils : public QObject
 {
@@ -105,7 +105,19 @@ private:
 /* ************************************************************************** */
 
 /*!
- * \brief The MobileSharing class
+ * \brief Cross-platform file & text sharing, exposed to QML as the `MobileSharing` type.
+ *
+ * This is the public entry point of the module. It wraps a per-platform PlatformShareUtils
+ * backend and offers a uniform API to:
+ *  - send text/URLs (sendText()) and files (sendFile()) to other apps,
+ *  - view a file in another app (viewFile()),
+ *  - save a file to a user-chosen location (saveFile()) and open one (openFile() / importFile()),
+ *  - receive files shared into the app (fileReceived()).
+ *
+ * Files the module hands out or takes in live in a session-scoped cache directory
+ * (see getCacheDirectory()) that is wiped at every startup; copy anything you want to keep
+ * into your own storage. Outgoing operations take a caller-chosen \c requestId that is echoed
+ * back in the result signals (shareFinished(), shareError(), fileSaved(), ...).
  */
 class MobileSharing : public QObject
 {
@@ -123,8 +135,26 @@ private slots:
     void onApplicationStateChanged(Qt::ApplicationState state);
 
 signals:
+    /*!
+     * \brief Emitted when an outgoing share/view/save flow ended without error.
+     * \param requestCode: The request id passed to the originating call (0 for sendText()).
+     *
+     * Covers both completion and user cancellation; it does not guarantee the target app
+     * actually consumed the content (not all apps report a result back).
+     */
     void shareFinished(int requestCode);
+
+    /*!
+     * \brief Emitted when no installed application can handle the requested action.
+     * \param requestCode: The request id passed to the originating call.
+     */
     void shareNoAppAvailable(int requestCode);
+
+    /*!
+     * \brief Emitted when an operation failed.
+     * \param requestCode: The request id passed to the originating call (0 when not applicable).
+     * \param message: A human-readable description of what went wrong.
+     */
     void shareError(int requestCode, QString message);
 
     /*!
@@ -145,6 +175,7 @@ signals:
     void fileSaved(int requestCode);
 
 public slots:
+    // Internal: wired to the active platform backend's signals. Not intended to be called by host code.
     void onShareFinished(int requestCode);
     void onShareNoAppAvailable(int requestCode);
     void onShareError(int requestCode, const QString &message);
@@ -154,25 +185,104 @@ public slots:
 public:
     explicit MobileSharing(QObject *parent = nullptr);
 
-    Q_INVOKABLE bool checkMimeTypeView(const QString &mimeType);
-
+    //! Access the module's shared QMimeDatabase (for mime lookups by name or content).
     const QMimeDatabase &getMimeDatabase() const;
 
-    //! Explicitely reject an incoming file: delete the cached copy (only within our cache subdir).
+    /*!
+     * \brief Check whether some installed app can VIEW a given mime type.
+     * \param mimeType: The mime type to test (like "application/pdf").
+     * \return True if at least one app can handle an ACTION_VIEW for this type.
+     * \note Android only; returns true on other platforms.
+     *
+     * Handy to enable/disable an "Open with" affordance before calling viewFile().
+     */
+    Q_INVOKABLE bool checkMimeTypeView(const QString &mimeType);
+
+    /*!
+     * \brief Explicitly reject/drop a received file by deleting our cached copy.
+     * \param filePath: A path previously delivered through fileReceived().
+     *
+     * As a safety guard, only files located inside the module's own cache directory are
+     * removed; a path pointing anywhere else is ignored (and logged as a warning).
+     */
     Q_INVOKABLE void discardFileReceived(const QString &filePath);
 
+    /*!
+     * \brief Return the module's session-scoped cache directory (cache/MobileSharing).
+     *
+     * Handy when the host application wants to create a throwaway file to share: anything
+     * created under this directory is wiped at the next startup, and is already serviceable
+     * by the platform's file sharing (e.g. Android's FileProvider exposes exactly this path),
+     * so the resulting file can be passed straight to sendFile().
+     */
     Q_INVOKABLE QString getCacheDirectory() const;
 
+    /*!
+     * \brief Import an arbitrary file (through a FileDialog) into the module's cache.
+     * \param source: URL of the source file (file:// on desktop/iOS, content:// on Android).
+     *
+     * Streams the content into our 'MobileSharing/incoming/' subdir so the app ends up owning a real,
+     * readable copy, then emits fileReceived() exactly as if the file had been shared in.
+     * This makes it possible to use the native file pickers through Qt FileDialog, and still use
+     * the files with something else than a QFile.
+     */
     Q_INVOKABLE void importFile(const QUrl &source);
 
+    /*!
+     * \brief Share plain text (and an optional URL) through the system share sheet.
+     * \param text: The text body to share.
+     * \param subject: An optional subject, used by targets that support one (e.g. email).
+     * \param url: An optional URL appended to the shared content.
+     */
     Q_INVOKABLE void sendText(const QString &text, const QString &subject, const QUrl &url);
 
+    /*!
+     * \brief Share a file with another application through the system share sheet.
+     * \param filePath: The file to share (must be readable, e.g. one under getCacheDirectory()).
+     * \param title: A human-readable title for the share (used by some targets).
+     * \param mimeType: The file's mime type (like "image/jpeg"), or "*" if unknown.
+     * \param requestId: Caller-chosen id, echoed back in shareFinished() / shareError().
+     * \param move: If true, the file is relocated into the module's (session-wiped) outgoing dir instead of copied,
+     *              useful for throwaway files. No-op on iOS.
+     */
     Q_INVOKABLE void sendFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId, bool move = false);
+
+    /*!
+     * \brief Open a file in another application for viewing.
+     * \param filePath: The file to view.
+     * \param title: A human-readable title (used by some targets).
+     * \param mimeType: The file's mime type, or "*" if unknown.
+     * \param requestId: Caller-chosen id, echoed back in shareFinished() / shareError().
+     */
     Q_INVOKABLE void viewFile(const QString &filePath, const QString &title, const QString &mimeType, const int &requestId);
 
     /*!
+     * \brief Save (export) a file to a user-chosen location via the OS file picker.
+     * \param filePath: The source file to export (typically one the app owns, e.g. in the cache).
+     * \param suggestedName: The default file name proposed to the user in the picker.
+     * \param mimeType: The file's mime type (like "application/pdf").
+     * \param requestId: Caller-chosen id, echoed back in fileSaved()/shareFinished()/shareError().
+     *
+     * On Android this drives SAF's ACTION_CREATE_DOCUMENT and streams the bytes into the chosen destination
+     * through the system ContentResolver (which is why it works where a plain QFileDialog "save" does not).
+     * Emits fileSaved() on success, shareFinished() if the user cancels, shareError() on failure.
+     *
+     * Requires the host to run QShareActivity.
+     */
     Q_INVOKABLE void saveFile(const QString &filePath, const QString &suggestedName, const QString &mimeType, const int &requestId);
 
+    /*!
+     * \brief Open (import) a file through the OS native file picker.
+     *
+     * Presents the platform's document picker and copies the chosen file into the module's
+     * cache, surfacing it through fileReceived() exactly like a received share.
+     *
+     * Use this where Qt's own FileDialog can't deliver a readable result - notably iOS,
+     * where the picker hands back a security-scoped File Provider URL that QFile cannot read;
+     * the native picker imports a readable copy into the app sandbox instead.
+     *
+     * On Android a Qt FileDialog + importFile() works fine, so this is currently implemented natively on iOS only.
+     */
     Q_INVOKABLE void openFile();
 };
 

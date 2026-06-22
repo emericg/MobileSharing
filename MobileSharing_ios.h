@@ -29,6 +29,12 @@
 
 /* ************************************************************************** */
 
+/*!
+ * \brief iOS backend for MobileSharing (UIKit / UniformTypeIdentifiers).
+ *
+ * Implements the PlatformShareUtils interface on top of UIActivityViewController
+ * (share/send) and UIDocumentPickerViewController (open/save).
+ */
 class IosShareUtils : public PlatformShareUtils
 {
     Q_OBJECT
@@ -46,11 +52,41 @@ public:
     void saveFile(const QString &filePath, const QString &suggestedName, const QString &mimeType, const int &requestId);
     void openFile();
 
+    /*!
+     * \brief Called by the export-picker delegate once a saveFile() flow finished.
+     * \param requestId: The request id passed to saveFile().
+     * \param success: True if the file was exported to the chosen destination.
+     * \param canceled: True if the user dismissed the picker (success is then false).
+     *
+     * Emits fileSaved() on success, shareFinished() on cancel, shareError() otherwise.
+     */
     void handleSaveResult(const int &requestId, bool success, bool canceled);
 
+    /*!
+     * \brief Called by the import-picker delegate with the (sandbox-local, readable) picked file.
+     * \param filePath: Path to the file the document picker imported into the app sandbox.
+     *
+     * Emits fileReceived() so it lands in the cache like any other incoming file.
+     */
     void handleImportedFile(const QString &filePath);
 
+    /*!
+     * \brief Called by the QLPreviewController delegate when the in-app viewer is dismissed.
+     * \param requestId: The request id passed to the originating viewFile() call.
+     *
+     * Emits shareFinished().
+     */
+    void handlePreviewDismissed(const int &requestId);
+
 public slots:
+    /*!
+     * \brief Incoming-file entry point: a file:// URL was opened into the app.
+     * \param url: The local URL iOS delivered (typically into the app's Documents/Inbox).
+     *
+     * Registered as the QDesktopServices "file" scheme handler in the constructor,
+     * so iOS "Open in <app>" / document-type opens land here.
+     * Validates the path and emits fileReceived().
+     */
     void handleFileUrlReceived(const QUrl &url);
 };
 
