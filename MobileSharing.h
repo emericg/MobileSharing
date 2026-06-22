@@ -98,6 +98,19 @@ public:
         return m_mimeDatabase;
     }
 
+    /*!
+     * \brief Centralized module cache layout
+     *
+     * Everything lives under the app's CacheLocation and everything is wiped at startup.
+     *
+     * - <cache>/MobileSharing
+     * - <cache>/MobileSharing/incoming
+     * - <cache>/MobileSharing/outgoing
+     */
+    static QString cacheRootDir();
+    static QString cacheIncomingDir();
+    static QString cacheOutgoingDir();
+
 private:
     QMimeDatabase m_mimeDatabase;
 };

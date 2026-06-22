@@ -38,6 +38,23 @@
 
 /* ************************************************************************** */
 
+QString PlatformShareUtils::cacheRootDir()
+{
+    return QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + "/MobileSharing";
+}
+
+QString PlatformShareUtils::cacheIncomingDir()
+{
+    return cacheRootDir() + "/incoming";
+}
+
+QString PlatformShareUtils::cacheOutgoingDir()
+{
+    return cacheRootDir() + "/outgoing";
+}
+
+/* ************************************************************************** */
+
 MobileSharing::MobileSharing(QObject *parent) : QObject(parent)
 {
 #if defined(Q_OS_IOS)
@@ -58,9 +75,9 @@ MobileSharing::MobileSharing(QObject *parent) : QObject(parent)
     connect(mPlatformShareUtils, &PlatformShareUtils::fileReceived, this, &MobileSharing::onFileReceived);
 
     // Module-owned temporary cache directory (cache/MobileSharing) with incoming/ and outgoing/ subdirs.
-    mWorkingDir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + "/MobileSharing";
-    mIncomingDir = mWorkingDir + "/incoming";
-    mOutgoingDir = mWorkingDir + "/outgoing";
+    mWorkingDir = PlatformShareUtils::cacheRootDir();
+    mIncomingDir = PlatformShareUtils::cacheIncomingDir();
+    mOutgoingDir = PlatformShareUtils::cacheOutgoingDir();
 
     // Session-scoped: wipe the whole directory, at the earliest point before any file can be received or sent
     QDir(mWorkingDir).removeRecursively();

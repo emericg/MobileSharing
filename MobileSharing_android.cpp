@@ -28,7 +28,6 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QDateTime>
-#include <QStandardPaths>
 
 #include <QCoreApplication>
 #include <QJniObject>
@@ -130,7 +129,7 @@ bool AndroidShareUtils::isShareablePath(const QString &filePath) const
     // Anything else should be copied into outgoing/ before sharing.
 
     const QString abs = QFileInfo(filePath).absoluteFilePath();
-    const QString root = QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + "/MobileSharing";
+    const QString root = cacheRootDir();
 
     return ((abs == root) || abs.startsWith(root + '/'));
 }
@@ -147,7 +146,7 @@ QString AndroidShareUtils::ensureShareableFile(const QString &filePath, bool mov
     // Already serviceable and the caller keeps ownership -> use it in place.
     if (!move && isShareablePath(fi.absoluteFilePath())) return fi.absoluteFilePath();
 
-    const QString outDir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + "/MobileSharing/outgoing";
+    const QString outDir = cacheOutgoingDir();
     QDir().mkpath(outDir);
 
     QString dest = outDir + '/' + fi.fileName();
@@ -179,8 +178,8 @@ void AndroidShareUtils::sendText(const QString &text, const QString &subject, co
     QJniObject jsSubject = QJniObject::fromString(subject);
     QJniObject jsUrl = QJniObject::fromString(url.toString());
     jboolean ok = QJniObject::callStaticMethod<jboolean>("io/emeric/mobilesharing/QShareUtils",
-                        "sendText", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z",
-                        jsText.object<jstring>(), jsSubject.object<jstring>(), jsUrl.object<jstring>());
+                                                         "sendText", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z",
+                                                         jsText.object<jstring>(), jsSubject.object<jstring>(), jsUrl.object<jstring>());
 
     if (!ok)
     {
