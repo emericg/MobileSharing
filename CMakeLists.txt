@@ -30,8 +30,11 @@ if (ANDROID)
         MobileSharing_android.cpp
         MobileSharing_android.h)
 elseif (IOS)
-    find_package(Qt6 REQUIRED COMPONENTS Quick)
-    set(PLATFORM_LIBRARIES Qt::Quick)
+    set(PLATFORM_LIBRARIES
+        "-framework UIKit"
+        "-framework Foundation"
+        "-framework QuickLook"
+        "-framework UniformTypeIdentifiers")
     set(PLATFORM_SOURCES
         MobileSharing_ios.mm)
 endif()
@@ -49,7 +52,9 @@ qt_add_qml_module(MobileSharing
     #OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/qml/MobileSharing"
 )
 
-target_link_libraries(MobileSharing PRIVATE ${CORE_LIBRARIES} ${PLATFORM_LIBRARIES})
+target_link_libraries(MobileSharing PUBLIC ${CORE_LIBRARIES})
+target_link_libraries(MobileSharing PRIVATE ${PLATFORM_LIBRARIES})
+
 target_include_directories(MobileSharing PUBLIC ${CMAKE_CURRENT_LIST_DIR})
 
 ################################################################################
