@@ -270,14 +270,12 @@ Lifecycle (identical on both platforms):
 
 ## Caveats
 
-> TODO
+> No ACTION_EDIT (on Android)
 
 
 ## Inspirations
 
-This project is entirely based on [ekkesSHAREexample](https://github.com/ekke/ekkesSHAREexample) by ekke.
-
-This project is based on:
+This project is based on [ekkesSHAREexample](https://github.com/ekke/ekkesSHAREexample) by ekke:
 - https://github.com/ekke/ekkesSHAREexample
 - https://www.qt.io/blog/2017/12/01/sharing-files-android-ios-qt-app
 - https://www.qt.io/blog/2018/01/16/sharing-files-android-ios-qt-app-part-2
@@ -298,7 +296,7 @@ Also inspired by:
 
 ## License
 
-This project is licensed under the MIT license, see LICENSE file for details.
+This project is licensed under the [MIT license](LICENSE).
 
 > Copyright (c) 2017 Ekkehard Gentz (ekke)  
 
