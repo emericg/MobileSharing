@@ -46,6 +46,7 @@
 #include <QtQml/qqmlregistration.h>
 #include <QObject>
 #include <QString>
+#include <QStringList>
 #include <QMimeDatabase>
 #include <QUrl>
 #include <QDebug>
@@ -84,8 +85,14 @@ public:
     virtual void sendFile(const QString &filePath, const QString &title, const QString &mimeType, int requestId, bool move) {
         qDebug() << filePath << " - " << title << "requestId: " << requestId << " - " << mimeType << " - " << move;
     }
+    virtual void sendFiles(const QStringList &filePaths, const QString &title, const QString &mimeType, int requestId, bool move) {
+        qDebug() << filePaths << " - " << title << "requestId: " << requestId << " - " << mimeType << " - " << move;
+    }
     virtual void viewFile(const QString &filePath, const QString &title, const QString &mimeType, int requestId) {
         qDebug() << filePath << " - " << title << "requestId: " << requestId << " - " << mimeType;
+    }
+    virtual void viewFiles(const QStringList &filePaths, const QString &title, const QString &mimeType, int requestId) {
+        qDebug() << filePaths << " - " << title << "requestId: " << requestId << " - " << mimeType;
     }
     virtual void saveFile(const QString &filePath, const QString &suggestedName, const QString &mimeType, int requestId) {
         qDebug() << filePath << " - " << suggestedName << "requestId: " << requestId << " - " << mimeType;
@@ -257,6 +264,20 @@ public:
     Q_INVOKABLE void sendFile(const QString &filePath, const QString &title, const QString &mimeType, int requestId, bool move = false);
 
     /*!
+     * \brief Share several files at once through the system share sheet.
+     * \param filePaths: The files to share (each must be readable, e.g. ones under getCacheDirectory()).
+     * \param title: A human-readable title for the share (used by some targets).
+     * \param mimeType: A common mime type for the set (like "image/jpeg"), or "*" if mixed/unknown.
+     * \param requestId: Caller-chosen id, echoed back in shareFinished() / shareError().
+     * \param move: If true, each file is relocated into the module's (session-wiped) outgoing dir
+     *              instead of copied, useful for throwaway files. No-op on iOS.
+     *
+     * On Android this uses ACTION_SEND_MULTIPLE; unshareable paths are skipped and it fails only
+     * if none could be shared. On iOS the share sheet takes the whole set natively.
+     */
+    Q_INVOKABLE void sendFiles(const QStringList &filePaths, const QString &title, const QString &mimeType, int requestId, bool move = false);
+
+    /*!
      * \brief Open a file in another application for viewing.
      * \param filePath: The file to view.
      * \param title: A human-readable title (used by some targets).
@@ -264,6 +285,18 @@ public:
      * \param requestId: Caller-chosen id, echoed back in shareFinished() / shareError().
      */
     Q_INVOKABLE void viewFile(const QString &filePath, const QString &title, const QString &mimeType, int requestId);
+
+    /*!
+     * \brief Preview several files at once in an in-app viewer.
+     * \param filePaths: The files to preview.
+     * \param title: A human-readable title (used by some targets).
+     * \param mimeType: A common mime type for the set, or "*" if mixed/unknown.
+     * \param requestId: Caller-chosen id, echoed back in shareFinished() / shareError().
+     *
+     * \note iOS only: QLPreviewController pages through the whole set. Android has no multi-file
+     * ACTION_VIEW equivalent, so this is a no-op there (call viewFile() per file instead).
+     */
+    Q_INVOKABLE void viewFiles(const QStringList &filePaths, const QString &title, const QString &mimeType, int requestId);
 
     /*!
      * \brief Save (export) a file to a user-chosen location via the OS file picker.

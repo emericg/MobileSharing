@@ -114,9 +114,10 @@ Edit your manifest's activity section:
 ```xml
 <activity android:name="io.emeric.mobilesharing.QShareActivity" android:launchMode="singleTask" ... > <!-- Change name and launchMode-->
 
-    <!-- Handle incoming content shared into this app (adjust mimeType to your own needs) -->
+    <!-- Handle incoming content shared into this app, single + multiple (adjust mimeType to your own needs) -->
     <intent-filter>
         <action android:name="android.intent.action.SEND" />
+        <action android:name="android.intent.action.SEND_MULTIPLE" />
         <category android:name="android.intent.category.DEFAULT" />
         <data android:mimeType="*/*" />
     </intent-filter>

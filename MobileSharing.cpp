@@ -147,9 +147,19 @@ void MobileSharing::sendFile(const QString &filePath, const QString &title, cons
     mPlatformShareUtils->sendFile(filePath, title, mimeType, requestId, move);
 }
 
+void MobileSharing::sendFiles(const QStringList &filePaths, const QString &title, const QString &mimeType, int requestId, bool move)
+{
+    mPlatformShareUtils->sendFiles(filePaths, title, mimeType, requestId, move);
+}
+
 void MobileSharing::viewFile(const QString &filePath, const QString &title, const QString &mimeType, int requestId)
 {
     mPlatformShareUtils->viewFile(filePath, title, mimeType, requestId);
+}
+
+void MobileSharing::viewFiles(const QStringList &filePaths, const QString &title, const QString &mimeType, int requestId)
+{
+    mPlatformShareUtils->viewFiles(filePaths, title, mimeType, requestId);
 }
 
 void MobileSharing::saveFile(const QString &filePath, const QString &suggestedName, const QString &mimeType, int requestId)

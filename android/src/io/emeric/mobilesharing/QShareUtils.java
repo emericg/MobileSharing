@@ -29,6 +29,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Collections;
@@ -128,6 +129,35 @@ public class QShareUtils
         shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
 
         context.startActivity(Intent.createChooser(shareIntent, "Share file using"));
+
+        return true;
+    }
+
+    public static boolean sendFiles(String[] filePaths, String title, String mimeType, int requestId) {
+        if (m_activity == null) return false;
+        final Context context = m_activity;
+
+        ArrayList<Uri> uris = new ArrayList<Uri>();
+        for (String path : filePaths) {
+            if (path == null || path.isEmpty()) continue;
+            try {
+                uris.add(FileProvider.getUriForFile(context, context.getPackageName() + ".fileprovider", new File(path)));
+            } catch (IllegalArgumentException e) {
+                // path not under a filepaths.xml root (the C++ layer normally prevents this)
+                Log.e("QShareUtils", "sendFiles: cannot be shared: " + path + " - " + e);
+            }
+        }
+        if (uris.isEmpty()) {
+            Log.e("QShareUtils", "sendFiles: no shareable files");
+            return false;
+        }
+
+        Intent shareIntent = new Intent(Intent.ACTION_SEND_MULTIPLE);
+        shareIntent.setType((mimeType == null || mimeType.isEmpty()) ? "*/*" : mimeType);
+        shareIntent.putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris);
+        shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+        context.startActivity(Intent.createChooser(shareIntent, "Share files using"));
 
         return true;
     }

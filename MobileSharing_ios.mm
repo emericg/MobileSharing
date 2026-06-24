@@ -111,9 +111,11 @@ static UIViewController *topViewController()
 
 - (void)documentPicker:(UIDocumentPickerViewController *)controller didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
 #pragma unused (controller)
-    NSURL *picked = urls.firstObject;
-    if (self.mIosShareUtils && picked) {
-        self.mIosShareUtils->handleImportedFile(QString::fromNSString(picked.path));
+    if (self.mIosShareUtils) {
+        // allowsMultipleSelection is on, so deliver every picked file (one fileReceived() each).
+        for (NSURL *url in urls) {
+            self.mIosShareUtils->handleImportedFile(QString::fromNSString(url.path));
+        }
     }
     [self release];
 }
@@ -133,19 +135,19 @@ static UIViewController *topViewController()
 @interface QLPreviewHelper : NSObject <QLPreviewControllerDataSource, QLPreviewControllerDelegate>
 @property (nonatomic) int requestId;
 @property (nonatomic) IosShareUtils *mIosShareUtils;
-@property (nonatomic, retain) NSURL *fileUrl;
+@property (nonatomic, retain) NSArray<NSURL *> *fileUrls;
 @end
 
 @implementation QLPreviewHelper
 
 - (NSInteger)numberOfPreviewItemsInPreviewController:(QLPreviewController *)controller {
 #pragma unused (controller)
-    return self.fileUrl ? 1 : 0;
+    return self.fileUrls.count;
 }
 
 - (id<QLPreviewItem>)previewController:(QLPreviewController *)controller previewItemAtIndex:(NSInteger)index {
-#pragma unused (controller, index)
-    return self.fileUrl;
+#pragma unused (controller)
+    return self.fileUrls[index];
 }
 
 - (void)previewControllerDidDismiss:(QLPreviewController *)controller {
@@ -155,7 +157,7 @@ static UIViewController *topViewController()
 }
 
 - (void)dealloc {
-    [_fileUrl release];
+    [_fileUrls release];
     [super dealloc];
 }
 
@@ -223,17 +225,30 @@ void IosShareUtils::sendText(const QString &text, const QString &subject, const 
 }
 
 void IosShareUtils::sendFile(const QString &filePath, const QString &title, const QString &mimeType, int requestId, bool move) {
+    // A single file is just a one-element share sheet.
+    sendFiles(QStringList{filePath}, title, mimeType, requestId, move);
+}
+
+void IosShareUtils::sendFiles(const QStringList &filePaths, const QString &title, const QString &mimeType, int requestId, bool move) {
 #pragma unused (title, mimeType, move)
     // 'move' is a no-op on iOS: any file in the app sandbox is shareable as-is (no FileProvider
     // equivalent). Throwaway-file cleanup is left to the app (e.g. delete after shareFinished).
     // We present the system share sheet (UIActivityViewController), which offers AirDrop,
     // "Save to Files", "Copy to <app>", etc. - a superset of the old Quick Look preview.
 
-    NSURL *fileUrl = [NSURL fileURLWithPath:filePath.toNSString()];
+    NSMutableArray *items = [NSMutableArray new];
+    for (const QString &p : filePaths) {
+        if (!p.isEmpty()) [items addObject:[NSURL fileURLWithPath:p.toNSString()]];
+    }
+    if (items.count == 0) {
+        Q_EMIT shareError(requestId, "Cannot share: no files");
+        [items release];
+        return;
+    }
 
     UIViewController *qtUIViewController = topViewController();
-    UIActivityViewController *activityController =
-        [[UIActivityViewController alloc] initWithActivityItems:@[fileUrl] applicationActivities:nil];
+    UIActivityViewController *activityController = [[UIActivityViewController alloc] initWithActivityItems:items applicationActivities:nil];
+    [items release];
     if (qtUIViewController == nil) {
         Q_EMIT shareError(requestId, "Cannot share: no root view controller");
         [activityController release];
@@ -241,8 +256,7 @@ void IosShareUtils::sendFile(const QString &filePath, const QString &title, cons
     }
 
     // Report the outcome once the sheet closes.
-    activityController.completionWithItemsHandler = ^(UIActivityType activityType, BOOL completed,
-                                                      NSArray *returnedItems, NSError *activityError) {
+    activityController.completionWithItemsHandler = ^(UIActivityType activityType, BOOL completed, NSArray *returnedItems, NSError *activityError) {
 #pragma unused (activityType, returnedItems)
         if (activityError) {
             Q_EMIT shareError(requestId, QString::fromNSString(activityError.localizedDescription));
@@ -255,26 +269,39 @@ void IosShareUtils::sendFile(const QString &filePath, const QString &title, cons
     // iPad: anchor the popover (harmless on iPhone, where it presents as a sheet).
     activityController.popoverPresentationController.sourceView = qtUIViewController.view;
     activityController.popoverPresentationController.sourceRect = CGRectMake(qtUIViewController.view.bounds.size.width / 2.0,
-                                                                            qtUIViewController.view.bounds.size.height / 2.0, 0, 0);
+                                                                             qtUIViewController.view.bounds.size.height / 2.0, 0, 0);
 
     [qtUIViewController presentViewController:activityController animated:YES completion:nil];
     [activityController release];
 }
 
 void IosShareUtils::viewFile(const QString &filePath, const QString &title, const QString &mimeType, int requestId) {
+    // A single file is just a one-item preview.
+    viewFiles(QStringList{filePath}, title, mimeType, requestId);
+}
+
+void IosShareUtils::viewFiles(const QStringList &filePaths, const QString &title, const QString &mimeType, int requestId) {
 #pragma unused (title, mimeType)
-    // In-app file preview via QuickLook.
+    // In-app file preview via QuickLook. QLPreviewController natively pages through several items.
     // Unsupported types still present (QLPreviewController shows a placeholder with its own share button), so no fallback is needed here.
 
-    NSString *path = filePath.toNSString();
-    if (![[NSFileManager defaultManager] fileExistsAtPath:path]) {
-        Q_EMIT shareError(requestId, QString("Cannot view file: %1").arg(filePath));
+    NSFileManager *fm = [NSFileManager defaultManager];
+    NSMutableArray *urls = [NSMutableArray new];
+    for (const QString &p : filePaths) {
+        NSString *path = p.toNSString();
+        if ([fm fileExistsAtPath:path]) [urls addObject:[NSURL fileURLWithPath:path]];
+        else qWarning() << "viewFiles: skipping missing file:" << p;
+    }
+    if (urls.count == 0) {
+        Q_EMIT shareError(requestId, "Cannot view files: none exist");
+        [urls release];
         return;
     }
 
     UIViewController *root = topViewController();
     if (root == nil) {
-        Q_EMIT shareError(requestId, "Cannot view file: no root view controller");
+        Q_EMIT shareError(requestId, "Cannot view files: no root view controller");
+        [urls release];
         return;
     }
 
@@ -283,7 +310,8 @@ void IosShareUtils::viewFile(const QString &filePath, const QString &title, cons
     QLPreviewHelper *helper = [[QLPreviewHelper alloc] init];
     helper.requestId = requestId;
     helper.mIosShareUtils = this;
-    helper.fileUrl = [NSURL fileURLWithPath:path]; // retained by the property
+    helper.fileUrls = urls; // retained by the property
+    [urls release];
     preview.dataSource = helper; // weak; helper keeps itself alive until dismiss
     preview.delegate = helper; // weak
 
@@ -340,6 +368,7 @@ void IosShareUtils::openFile() {
     // asCopy:YES makes iOS copy the picked file into our own container and hand back a readable URL,
     // sidestepping the security-scoped File Provider URL that Qt's FileDialog returns (which QFile cannot read).
     UIDocumentPickerViewController *picker = [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:@[UTTypeItem] asCopy:YES];
+    //picker.allowsMultipleSelection = YES; // let the user import several files at once
 
     DocImportDelegate *delegate = [[DocImportDelegate alloc] init];
     delegate.mIosShareUtils = this;
