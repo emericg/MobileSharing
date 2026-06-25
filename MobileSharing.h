@@ -67,6 +67,7 @@ Q_SIGNALS:
     void shareFinished(int requestCode);
     void shareNoAppAvailable(int requestCode);
     void shareError(int requestCode, QString message);
+
     void fileReceived(QString filePath);
     void fileSaved(int requestCode);
 
