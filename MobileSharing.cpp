@@ -30,11 +30,14 @@
 #endif
 
 #include <QGuiApplication>
+#include <QCoreApplication>
 #include <QStandardPaths>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QDateTime>
+#include <QQmlEngine>
+#include <QJSEngine>
 
 /* ************************************************************************** */
 
@@ -51,6 +54,21 @@ QString PlatformShareUtils::cacheIncomingDir()
 QString PlatformShareUtils::cacheOutgoingDir()
 {
     return cacheRootDir() + "/outgoing";
+}
+
+/* ************************************************************************** */
+
+MobileSharing *MobileSharing::getInstance()
+{
+    static MobileSharing *instance = new MobileSharing(QCoreApplication::instance());
+    return instance;
+}
+
+MobileSharing *MobileSharing::create(QQmlEngine *, QJSEngine *)
+{
+    MobileSharing *instance = getInstance();
+    QJSEngine::setObjectOwnership(instance, QJSEngine::CppOwnership);
+    return instance;
 }
 
 /* ************************************************************************** */

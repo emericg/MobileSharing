@@ -51,6 +51,9 @@
 #include <QUrl>
 #include <QDebug>
 
+class QQmlEngine;
+class QJSEngine;
+
 /* ************************************************************************** */
 
 /*!
@@ -60,7 +63,7 @@ class PlatformShareUtils : public QObject
 {
     Q_OBJECT
 
-signals:
+Q_SIGNALS:
     void shareFinished(int requestCode);
     void shareNoAppAvailable(int requestCode);
     void shareError(int requestCode, QString message);
@@ -71,13 +74,8 @@ public:
     PlatformShareUtils(QObject *parent = nullptr) : QObject(parent) { };
     virtual ~PlatformShareUtils() = default;
 
-    virtual void checkPendingIntents(const QString &workingDirPath) {
-        qDebug() << "checkPendingIntents" << workingDirPath;
-    }
-    virtual bool checkMimeTypeView(const QString &mimeType) {
-        qDebug() << "check view for" << mimeType;
-        return true;
-    }
+    virtual void checkPendingIntents(const QString &workingDirPath) { }
+    virtual bool checkMimeTypeView(const QString &mimeType) { return true; }
 
     virtual void sendText(const QString &text, const QString &subject, const QUrl &url) {
         qDebug() << text << subject << url.url();
@@ -94,6 +92,7 @@ public:
     virtual void viewFiles(const QStringList &filePaths, const QString &title, const QString &mimeType, int requestId) {
         qDebug() << filePaths << " - " << title << "requestId: " << requestId << " - " << mimeType;
     }
+
     virtual void saveFile(const QString &filePath, const QString &suggestedName, const QString &mimeType, int requestId) {
         qDebug() << filePath << " - " << suggestedName << "requestId: " << requestId << " - " << mimeType;
     }
@@ -143,18 +142,9 @@ class MobileSharing : public QObject
 {
     Q_OBJECT
     QML_ELEMENT
+    QML_SINGLETON
 
-    PlatformShareUtils *mPlatformShareUtils = nullptr;
-    bool mPendingIntentsChecked = false;
-
-    QString mWorkingDir;  //!< module-owned cache root (cache/MobileSharing), wiped at startup
-    QString mIncomingDir; //!< subdir where received files are copied (cache/MobileSharing/incoming)
-    QString mOutgoingDir; //!< subdir where sending files are copied (cache/MobileSharing/outgoing)
-
-private slots:
-    void onApplicationStateChanged(Qt::ApplicationState state);
-
-signals:
+Q_SIGNALS:
     /*!
      * \brief Emitted when an outgoing share/view/save flow ended without error.
      * \param requestCode: The request id passed to the originating call (0 for sendText()).
@@ -199,7 +189,24 @@ public slots:
     void onFileReceived(const QString &filePath);
 
 public:
-    explicit MobileSharing(QObject *parent = nullptr);
+    /*!
+     * \brief Get the process-wide MobileSharing singleton instance.
+     *
+     * Use this to access the instance from C++.
+     * The same instance is shared with QML.
+     */
+    static MobileSharing *getInstance();
+
+    /*!
+     * \brief QML singleton factory.
+     *
+     * Called by the QML engine to obtain the MobileSharing singleton.
+     * Returns getInstance(), so C++ and QML share the same single instance,
+     * and flags it C++ owned so the JS engine never deletes it.
+     */
+    static MobileSharing *create(QQmlEngine *qmlEngine, QJSEngine *jsEngine);
+
+    // Tools /////////////////////////////////////////////////////////////////
 
     //! Access the module's shared QMimeDatabase (for mime lookups by name or content).
     const QMimeDatabase &getMimeDatabase() const;
@@ -215,15 +222,6 @@ public:
     Q_INVOKABLE bool checkMimeTypeView(const QString &mimeType);
 
     /*!
-     * \brief Explicitly reject/drop a received file by deleting our cached copy.
-     * \param filePath: A path previously delivered through fileReceived().
-     *
-     * As a safety guard, only files located inside the module's own cache directory are
-     * removed; a path pointing anywhere else is ignored (and logged as a warning).
-     */
-    Q_INVOKABLE void discardFileReceived(const QString &filePath);
-
-    /*!
      * \brief Return the module's session-scoped cache directory (cache/MobileSharing).
      *
      * Handy when the host application wants to create a throwaway file to share: anything
@@ -234,15 +232,15 @@ public:
     Q_INVOKABLE QString getCacheDirectory() const;
 
     /*!
-     * \brief Import an arbitrary file (through a FileDialog) into the module's cache.
-     * \param source: URL of the source file (file:// on desktop/iOS, content:// on Android).
+     * \brief Explicitly reject/drop a received file by deleting our cached copy.
+     * \param filePath: A path previously delivered through fileReceived().
      *
-     * Streams the content into our 'MobileSharing/incoming/' subdir so the app ends up owning a real,
-     * readable copy, then emits fileReceived() exactly as if the file had been shared in.
-     * This makes it possible to use the native file pickers through Qt FileDialog, and still use
-     * the files with something else than a QFile.
+     * As a safety guard, only files located inside the module's own cache directory are
+     * removed; a path pointing anywhere else is ignored (and logged as a warning).
      */
-    Q_INVOKABLE void importFile(const QUrl &source);
+    Q_INVOKABLE void discardFileReceived(const QString &filePath);
+
+    // Sharing /////////////////////////////////////////////////////////////////
 
     /*!
      * \brief Share plain text (and an optional URL) through the system share sheet.
@@ -298,6 +296,33 @@ public:
      */
     Q_INVOKABLE void viewFiles(const QStringList &filePaths, const QString &title, const QString &mimeType, int requestId);
 
+    // Open / Save /////////////////////////////////////////////////////////////
+
+    /*!
+     * \brief Import an arbitrary file (through a FileDialog) into the module's cache.
+     * \param source: URL of the source file (file:// on desktop/iOS, content:// on Android).
+     *
+     * Streams the content into our 'MobileSharing/incoming/' subdir so the app ends up owning a real,
+     * readable copy, then emits fileReceived() exactly as if the file had been shared in.
+     * This makes it possible to use the native file pickers through Qt FileDialog, and still use
+     * the files with something else than a QFile.
+     */
+    Q_INVOKABLE void importFile(const QUrl &source);
+
+    /*!
+     * \brief Open (import) a file through the OS native file picker.
+     *
+     * Presents the platform's document picker and copies the chosen file into the module's
+     * cache, surfacing it through fileReceived() exactly like a received share.
+     *
+     * Use this where Qt's own FileDialog can't deliver a readable result - notably iOS,
+     * where the picker hands back a security-scoped File Provider URL that QFile cannot read;
+     * the native picker imports a readable copy into the app sandbox instead.
+     *
+     * On Android a Qt FileDialog + importFile() works fine, so this is currently implemented natively on iOS only.
+     */
+    Q_INVOKABLE void openFile();
+
     /*!
      * \brief Save (export) a file to a user-chosen location via the OS file picker.
      * \param filePath: The source file to export (typically one the app owns, e.g. in the cache).
@@ -313,19 +338,21 @@ public:
      */
     Q_INVOKABLE void saveFile(const QString &filePath, const QString &suggestedName, const QString &mimeType, int requestId);
 
-    /*!
-     * \brief Open (import) a file through the OS native file picker.
-     *
-     * Presents the platform's document picker and copies the chosen file into the module's
-     * cache, surfacing it through fileReceived() exactly like a received share.
-     *
-     * Use this where Qt's own FileDialog can't deliver a readable result - notably iOS,
-     * where the picker hands back a security-scoped File Provider URL that QFile cannot read;
-     * the native picker imports a readable copy into the app sandbox instead.
-     *
-     * On Android a Qt FileDialog + importFile() works fine, so this is currently implemented natively on iOS only.
-     */
-    Q_INVOKABLE void openFile();
+private slots:
+    void onApplicationStateChanged(Qt::ApplicationState state);
+
+private:
+    bool mPendingIntentsChecked = false;
+
+    QString mWorkingDir;  //!< module-owned cache root (cache/MobileSharing), wiped at startup
+    QString mIncomingDir; //!< subdir where received files are copied (cache/MobileSharing/incoming)
+    QString mOutgoingDir; //!< subdir where sending files are copied (cache/MobileSharing/outgoing)
+
+    //! Per-platform backend.
+    PlatformShareUtils *mPlatformShareUtils = nullptr;
+
+    // Singleton
+    explicit MobileSharing(QObject *parent = nullptr);
 };
 
 /* ************************************************************************** */
