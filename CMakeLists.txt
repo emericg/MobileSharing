@@ -14,10 +14,13 @@ set(CORE_LIBRARIES Qt::Core Qt::Gui Qt::Qml)
 
 # Generic sources
 set(CORE_SOURCES
-    MobileSharing.cpp MobileSharing.h)
+    MobileSharing.cpp MobileSharing.h MobileSharing_private.h)
 
 # OS specific sources & dependencies
 if (ANDROID)
+    set(PLATFORM_SOURCES
+        MobileSharing_android.cpp MobileSharing_android.h)
+
     if(Qt6Gui_VERSION VERSION_GREATER_EQUAL 6.10.0)
         find_package(Qt6 REQUIRED COMPONENTS CorePrivate)
         set(PLATFORM_LIBRARIES ${CORE_LIBRARIES} Qt6::CorePrivate)
@@ -25,18 +28,16 @@ if (ANDROID)
         find_package(Qt6 REQUIRED COMPONENTS Core)
         set(PLATFORM_LIBRARIES ${CORE_LIBRARIES} Qt6::CorePrivate)
     endif()
-
-    set(PLATFORM_SOURCES
-        MobileSharing_android.cpp
-        MobileSharing_android.h)
 elseif (IOS)
+    enable_language(OBJCXX)
+    set(PLATFORM_SOURCES
+        MobileSharing_ios.mm)
+
     set(PLATFORM_LIBRARIES
         "-framework UIKit"
         "-framework Foundation"
         "-framework QuickLook"
         "-framework UniformTypeIdentifiers")
-    set(PLATFORM_SOURCES
-        MobileSharing_ios.mm)
 endif()
 
 ################################################################################
@@ -56,6 +57,14 @@ target_link_libraries(MobileSharing PUBLIC ${CORE_LIBRARIES})
 target_link_libraries(MobileSharing PRIVATE ${PLATFORM_LIBRARIES})
 
 target_include_directories(MobileSharing PUBLIC ${CMAKE_CURRENT_LIST_DIR})
+
+################################################################################
+
+if (IOS)
+    # Enable ARC for the Objective-C++ source
+    set_target_properties(MobileSharing PROPERTIES XCODE_ATTRIBUTE_CLANG_ENABLE_OBJC_ARC YES)
+    target_compile_options(MobileSharing PRIVATE $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>)
+endif()
 
 ################################################################################
 

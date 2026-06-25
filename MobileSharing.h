@@ -51,98 +51,10 @@
 #include <QUrl>
 #include <QDebug>
 
+#include "MobileSharing_private.h"
+
 class QQmlEngine;
 class QJSEngine;
-
-/* ************************************************************************** */
-
-/*!
- * \brief Internal platform backend behind MobileSharing.
- */
-class PlatformShareUtils : public QObject
-{
-    Q_OBJECT
-
-Q_SIGNALS:
-    void shareFinished(int requestCode);
-    void shareNoAppAvailable(int requestCode);
-    void shareError(int requestCode, QString message);
-
-    void fileReceived(QString filePath);
-    void fileSaved(int requestCode);
-
-public:
-    PlatformShareUtils(QObject *parent = nullptr) : QObject(parent) { };
-    virtual ~PlatformShareUtils() = default;
-
-    virtual void checkPendingIntents(const QString &workingDirPath) { }
-    virtual bool checkMimeTypeView(const QString &mimeType) { return true; }
-
-    virtual void sendText(const QString &text, const QString &subject, const QUrl &url) {
-        qDebug() << text << subject << url.url();
-    }
-    virtual void sendFile(const QString &filePath, const QString &title, const QString &mimeType, int requestId, bool move) {
-        qDebug() << filePath << " - " << title << "requestId: " << requestId << " - " << mimeType << " - " << move;
-    }
-    virtual void sendFiles(const QStringList &filePaths, const QString &title, const QString &mimeType, int requestId, bool move) {
-        qDebug() << filePaths << " - " << title << "requestId: " << requestId << " - " << mimeType << " - " << move;
-    }
-    virtual void viewFile(const QString &filePath, const QString &title, const QString &mimeType, int requestId) {
-        qDebug() << filePath << " - " << title << "requestId: " << requestId << " - " << mimeType;
-    }
-    virtual void viewFiles(const QStringList &filePaths, const QString &title, const QString &mimeType, int requestId) {
-        qDebug() << filePaths << " - " << title << "requestId: " << requestId << " - " << mimeType;
-    }
-
-    virtual void saveFile(const QString &filePath, const QString &suggestedName, const QString &mimeType, int requestId) {
-        qDebug() << filePath << " - " << suggestedName << "requestId: " << requestId << " - " << mimeType;
-    }
-    virtual void openFile() {
-        qDebug() << "openFile";
-    }
-
-    //! Apply the directory-sharing (SAF DocumentsProvider) state. Android-only; no-op elsewhere.
-    virtual void setDirectorySharing(bool enabled, const QString &dirPath, bool writable, const QString &title) {
-        qDebug() << "setDirectorySharing" << enabled << dirPath << writable << title;
-    }
-
-    /*!
-     * \brief Read back the persisted directory-sharing state (Android, from SharedPreferences).
-     * \param dirPath: Out; set to the stored shared directory when one was persisted.
-     * \param writable: Out; set to the stored read/write flag.
-     * \param title: Out; set to the stored root title when one was persisted.
-     * \return True if the feature was persisted as enabled.
-     * \note Android only.
-     *
-     * Lets MobileSharing seed its in-memory state on startup so it mirrors what
-     * the system-managed provider is actually serving (the provider keeps running
-     * even when the app UI is not).
-     */
-    virtual bool loadDirectorySharingState(QString &dirPath, bool &writable, QString &title) {
-        Q_UNUSED(dirPath) Q_UNUSED(writable) Q_UNUSED(title)
-        return false;
-    }
-
-    const QMimeDatabase &getMimeDatabase() const {
-        return m_mimeDatabase;
-    }
-
-    /*!
-     * \brief Centralized module cache layout
-     *
-     * Everything lives under the app's CacheLocation and everything is wiped at startup.
-     *
-     * - <cache>/MobileSharing
-     * - <cache>/MobileSharing/incoming
-     * - <cache>/MobileSharing/outgoing
-     */
-    static QString cacheRootDir();
-    static QString cacheIncomingDir();
-    static QString cacheOutgoingDir();
-
-private:
-    QMimeDatabase m_mimeDatabase;
-};
 
 /* ************************************************************************** */
 
