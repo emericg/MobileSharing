@@ -42,6 +42,8 @@ import android.app.Activity;
 import android.content.Intent;
 import android.content.Context;
 import android.content.ContentResolver;
+import android.content.SharedPreferences;
+import android.provider.DocumentsContract;
 import android.webkit.MimeTypeMap;
 import androidx.core.content.FileProvider;
 
@@ -60,6 +62,10 @@ public class QShareUtils
             Log.d("QShareUtils", "Activity is null");
         }
     }
+
+    // -------------------------------------------------------------------------
+    // MimeTypes helpers
+    // -------------------------------------------------------------------------
 
     public static boolean checkMimeTypeView(String mimeType) {
         if (m_activity == null) return false;
@@ -81,6 +87,10 @@ public class QShareUtils
         }
         return false;
     }
+
+    // -------------------------------------------------------------------------
+    // Outgoing content helpers
+    // -------------------------------------------------------------------------
 
     public static boolean sendText(String text, String subject, String url) {
         if (m_activity == null) return false;
@@ -186,9 +196,9 @@ public class QShareUtils
         return true;
     }
 
-    // ------------------------------------------------------------------------
+    // -------------------------------------------------------------------------
     // Incoming content helpers (used by QShareActivity.processIntent())
-    // ------------------------------------------------------------------------
+    // -------------------------------------------------------------------------
 
     // Resolve the human-readable display name of a content:// Uri, or null.
     public static String getContentName(ContentResolver cR, Uri uri) {
@@ -253,9 +263,9 @@ public class QShareUtils
         }
     }
 
-    // ------------------------------------------------------------------------
+    // -------------------------------------------------------------------------
     // Outgoing "save file to..." helpers (SAF ACTION_CREATE_DOCUMENT)
-    // ------------------------------------------------------------------------
+    // -------------------------------------------------------------------------
 
     // Source paths for in-flight saveFile() requests, keyed by request code. The
     // destination is only known later (in QShareActivity.onActivityResult), so we
@@ -340,5 +350,87 @@ public class QShareUtils
             Log.e("QShareUtils", "writeFileToUri: failed - " + e.getMessage());
             return false;
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // Directory sharing config (SAF DocumentsProvider) -- see QShareDocumentProvider
+    // -------------------------------------------------------------------------
+
+    // SharedPreferences store read by QShareDocumentProvider (keys kept in sync there). The provider
+    // may be queried by the system in a bare process before any Qt/QML is up, so its whole state has
+    // to live somewhere it can read without us: SharedPreferences.
+    public static final String DOC_PROVIDER_PREFS = "MobileSharingDocProvider";
+
+    // Authority of our DocumentsProvider, must match the AndroidManifest <provider> entry
+    // (android:authorities="${applicationId}.documents").
+    private static String docProviderAuthority(Context context) {
+        return context.getPackageName() + ".documents";
+    }
+
+    // Enable/disable the DocumentsProvider and point it at an app-owned directory. Persists the
+    // config and pokes SAF so any open picker refreshes its list of roots. 'writable' is plumbed
+    // for the future read/write wave; the provider currently serves read-only regardless.
+    // Returns false if the activity/context is missing or the directory could not be created.
+    public static boolean setDirectorySharing(boolean enabled, String rootDirPath, boolean writable, String title) {
+        if (m_activity == null) return false;
+        final Context context = m_activity;
+
+        if (enabled) {
+            if (rootDirPath == null || rootDirPath.isEmpty()) {
+                Log.e("QShareUtils", "setDirectorySharing: empty rootDirPath");
+                return false;
+            }
+            File dir = new File(rootDirPath);
+            if (!dir.exists() && !dir.mkdirs()) {
+                Log.e("QShareUtils", "setDirectorySharing: cannot create " + rootDirPath);
+                return false;
+            }
+        }
+
+        SharedPreferences prefs = context.getSharedPreferences(DOC_PROVIDER_PREFS, Context.MODE_PRIVATE);
+        prefs.edit()
+             .putBoolean("enabled", enabled)
+             .putString("rootDir", rootDirPath != null ? rootDirPath : "")
+             .putBoolean("writable", writable)
+             .putString("title", (title != null && !title.isEmpty()) ? title : "Shared")
+             .apply();
+
+        // Tell SAF our set of roots changed, so the root appears/disappears live in any open picker.
+        try {
+            Uri rootsUri = DocumentsContract.buildRootsUri(docProviderAuthority(context));
+            context.getContentResolver().notifyChange(rootsUri, null);
+        } catch (Exception e) {
+            Log.w("QShareUtils", "setDirectorySharing: notifyChange failed - " + e.getMessage());
+        }
+
+        Log.d("QShareUtils", "setDirectorySharing: enabled=" + enabled + " writable=" + writable + " dir=" + rootDirPath);
+        return true;
+    }
+
+    // Read the persisted config back. Lets the C++/QML side mirror the live provider state on a
+    // fresh launch (the provider keeps serving from these prefs even when the app UI is not running).
+    private static SharedPreferences docProviderPrefs() {
+        if (m_activity == null) return null;
+        return m_activity.getSharedPreferences(DOC_PROVIDER_PREFS, Context.MODE_PRIVATE);
+    }
+
+    public static boolean getDirectorySharingEnabled() {
+        SharedPreferences prefs = docProviderPrefs();
+        return prefs != null && prefs.getBoolean("enabled", false);
+    }
+
+    public static String getSharedDirectory() {
+        SharedPreferences prefs = docProviderPrefs();
+        return prefs != null ? prefs.getString("rootDir", "") : "";
+    }
+
+    public static boolean getSharedDirectoryWritable() {
+        SharedPreferences prefs = docProviderPrefs();
+        return prefs != null && prefs.getBoolean("writable", false);
+    }
+
+    public static String getSharedDirectoryTitle() {
+        SharedPreferences prefs = docProviderPrefs();
+        return prefs != null ? prefs.getString("title", "") : "";
     }
 }

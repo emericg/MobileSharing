@@ -139,8 +139,8 @@ public class QShareActivity extends QtActivity
         }
     }
 
-    // EXTRA_STREAM helpers. getParcelable[ArrayList]Extra(String) is deprecated on API 33+, so
-    // prefer the typed overload there and isolate the legacy suppression to these helpers.
+    // EXTRA_STREAM helpers. getParcelable[ArrayList]Extra(String) is deprecated on API 33+,
+    // so prefer the typed overload there and isolate the legacy suppression to these helpers.
     private static Uri extraStream(Intent intent) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             return intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri.class);
@@ -165,9 +165,10 @@ public class QShareActivity extends QtActivity
         return intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM);
     }
 
-    // Process the incoming Intent: ACTION_VIEW / ACTION_SEND carry a single item, ACTION_SEND_MULTIPLE
-    // carries many. Each Uri is copied into our cache and surfaced one-by-one via setFileReceived(),
-    // so a multi-file share simply produces several fileReceived() callbacks.
+    // Process the incoming Intent: ACTION_VIEW / ACTION_SEND carry a single item,
+    // ACTION_SEND_MULTIPLE carries many. Each Uri is copied into our cache and
+    // surfaced one-by-one via setFileReceived(), so a multi-file share simply
+    // produces several fileReceived() callbacks.
     private void processIntent() {
         Intent intent = getIntent();
         String action = intent.getAction();
@@ -185,9 +186,9 @@ public class QShareActivity extends QtActivity
             return;
         }
 
-        // We always copy the incoming content (file:// or content://) into our own cache dir via an
-        // InputStream, so the app always gets a real, readable file it owns. ContentResolver
-        // .openInputStream() handles both schemes.
+        // We always copy the incoming content (file:// or content://) into our
+        // own cache dir via an InputStream, so the app always gets a real, readable
+        // file it owns. ContentResolver.openInputStream() handles both schemes.
         ContentResolver cR = this.getContentResolver();
         int received = 0;
         for (Uri uri : uris) {
