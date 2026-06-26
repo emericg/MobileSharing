@@ -26,11 +26,18 @@
 #import <UIKit/UIKit.h>
 #import <QuickLook/QuickLook.h>
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
+#import <objc/runtime.h>
 
 #import <QGuiApplication>
 #import <QDesktopServices>
 #import <QFileInfo>
 #import <QUrl>
+
+/* ************************************************************************** */
+
+#if !__has_feature(objc_arc)
+#error "MobileSharing_ios.mm must be compiled with ARC (-fobjc-arc) !!!"
+#endif
 
 /* ************************************************************************** */
 
@@ -63,11 +70,19 @@ static UIViewController *topViewController()
 
 /* ************************************************************************** */
 
+// A picker/preview's delegate & data-source properties are weak, so a presented controller can't
+// keep our helper alive on its own. We attach the helper to the controller as an associated object
+// (RETAIN): it then lives exactly as long as the controller and is released when the controller is
+// deallocated - no manual retain/release, and no self-release from the callbacks.
+static const void *kMobileSharingDelegateKey = &kMobileSharingDelegateKey;
+
+/* ************************************************************************** */
+
 // Delegate for the "save file to..." export picker
 @interface DocExportDelegate : NSObject <UIDocumentPickerDelegate>
 @property (nonatomic) int requestId;
 @property (nonatomic) IosShareUtils *mIosShareUtils;
-@property (nonatomic, retain) NSURL *stagingDir; // temp dir to remove afterwards, or nil
+@property (nonatomic, strong) NSURL *stagingDir; // temp dir to remove afterwards, or nil
 @end
 
 @implementation DocExportDelegate
@@ -83,19 +98,17 @@ static UIViewController *topViewController()
 #pragma unused (controller, urls)
     if (self.mIosShareUtils) self.mIosShareUtils->handleSaveResult(self.requestId, true, false);
     [self cleanup];
-    [self release];
 }
 
 - (void)documentPickerWasCancelled:(UIDocumentPickerViewController *)controller {
 #pragma unused (controller)
     if (self.mIosShareUtils) self.mIosShareUtils->handleSaveResult(self.requestId, false, true);
     [self cleanup];
-    [self release];
 }
 
 - (void)dealloc {
-    [_stagingDir release];
-    [super dealloc];
+    // Safety net: if neither callback fired, still remove the temp export dir.
+    [self cleanup];
 }
 
 @end
@@ -117,25 +130,23 @@ static UIViewController *topViewController()
             self.mIosShareUtils->handleImportedFile(QString::fromNSString(url.path));
         }
     }
-    [self release];
 }
 
 - (void)documentPickerWasCancelled:(UIDocumentPickerViewController *)controller {
 #pragma unused (controller)
-    [self release];
 }
 
 @end
 
 /* ************************************************************************** */
 
-// Data source + delegate for the in-app file viewer (QLPreviewController). Same MRC
-// self-ownership as the picker delegates: alive from creation until the preview is
-// dismissed, then it releases itself. NSURL already conforms to <QLPreviewItem>.
+// Data source + delegate for the in-app file viewer (QLPreviewController). Owned by the preview
+// controller via an associated object (its dataSource/delegate properties are weak), so it lives
+// exactly as long as the preview. NSURL already conforms to <QLPreviewItem>.
 @interface QLPreviewHelper : NSObject <QLPreviewControllerDataSource, QLPreviewControllerDelegate>
 @property (nonatomic) int requestId;
 @property (nonatomic) IosShareUtils *mIosShareUtils;
-@property (nonatomic, retain) NSArray<NSURL *> *fileUrls;
+@property (nonatomic, strong) NSArray<NSURL *> *fileUrls;
 @end
 
 @implementation QLPreviewHelper
@@ -153,12 +164,6 @@ static UIViewController *topViewController()
 - (void)previewControllerDidDismiss:(QLPreviewController *)controller {
 #pragma unused (controller)
     if (self.mIosShareUtils) self.mIosShareUtils->handlePreviewDismissed(self.requestId);
-    [self release];
-}
-
-- (void)dealloc {
-    [_fileUrls release];
-    [super dealloc];
 }
 
 @end
@@ -198,7 +203,6 @@ void IosShareUtils::sendText(const QString &text, const QString &subject, const 
     UIActivityViewController *activityController = [[UIActivityViewController alloc] initWithActivityItems:sharingItems applicationActivities:nil];
     if (qtUIViewController == nil) {
         Q_EMIT shareError(0, "Cannot share: no root view controller");
-        [activityController release];
         return;
     }
 
@@ -221,7 +225,6 @@ void IosShareUtils::sendText(const QString &text, const QString &subject, const 
                                                                             qtUIViewController.view.bounds.size.height / 2.0, 0, 0);
 
     [qtUIViewController presentViewController:activityController animated:YES completion:nil];
-    [activityController release];
 }
 
 void IosShareUtils::sendFile(const QString &filePath, const QString &title, const QString &mimeType, int requestId, bool move) {
@@ -242,16 +245,13 @@ void IosShareUtils::sendFiles(const QStringList &filePaths, const QString &title
     }
     if (items.count == 0) {
         Q_EMIT shareError(requestId, "Cannot share: no files");
-        [items release];
         return;
     }
 
     UIViewController *qtUIViewController = topViewController();
     UIActivityViewController *activityController = [[UIActivityViewController alloc] initWithActivityItems:items applicationActivities:nil];
-    [items release];
     if (qtUIViewController == nil) {
         Q_EMIT shareError(requestId, "Cannot share: no root view controller");
-        [activityController release];
         return;
     }
 
@@ -272,7 +272,6 @@ void IosShareUtils::sendFiles(const QStringList &filePaths, const QString &title
                                                                              qtUIViewController.view.bounds.size.height / 2.0, 0, 0);
 
     [qtUIViewController presentViewController:activityController animated:YES completion:nil];
-    [activityController release];
 }
 
 void IosShareUtils::viewFile(const QString &filePath, const QString &title, const QString &mimeType, int requestId) {
@@ -294,14 +293,12 @@ void IosShareUtils::viewFiles(const QStringList &filePaths, const QString &title
     }
     if (urls.count == 0) {
         Q_EMIT shareError(requestId, "Cannot view files: none exist");
-        [urls release];
         return;
     }
 
     UIViewController *root = topViewController();
     if (root == nil) {
         Q_EMIT shareError(requestId, "Cannot view files: no root view controller");
-        [urls release];
         return;
     }
 
@@ -310,13 +307,13 @@ void IosShareUtils::viewFiles(const QStringList &filePaths, const QString &title
     QLPreviewHelper *helper = [[QLPreviewHelper alloc] init];
     helper.requestId = requestId;
     helper.mIosShareUtils = this;
-    helper.fileUrls = urls; // retained by the property
-    [urls release];
-    preview.dataSource = helper; // weak; helper keeps itself alive until dismiss
-    preview.delegate = helper; // weak
+    helper.fileUrls = urls;
+    preview.dataSource = helper; // weak
+    preview.delegate = helper;   // weak
+    // Tie the helper's lifetime to the preview controller (its data source / delegate are weak).
+    objc_setAssociatedObject(preview, kMobileSharingDelegateKey, helper, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 
     [root presentViewController:preview animated:YES completion:nil];
-    [preview release];
 }
 
 void IosShareUtils::saveFile(const QString &filePath, const QString &suggestedName, const QString &mimeType, int requestId) {
@@ -350,8 +347,9 @@ void IosShareUtils::saveFile(const QString &filePath, const QString &suggestedNa
     DocExportDelegate *delegate = [[DocExportDelegate alloc] init];
     delegate.requestId = requestId;
     delegate.mIosShareUtils = this;
-    delegate.stagingDir = stagingDir; // retained by the property
-    picker.delegate = delegate; // assign; the delegate keeps itself alive until its callback
+    delegate.stagingDir = stagingDir;
+    picker.delegate = delegate; // weak; the association below keeps it alive for the picker's lifetime
+    objc_setAssociatedObject(picker, kMobileSharingDelegateKey, delegate, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 
     UIViewController *root = topViewController();
     if (root != nil) {
@@ -359,9 +357,7 @@ void IosShareUtils::saveFile(const QString &filePath, const QString &suggestedNa
     } else {
         Q_EMIT shareError(requestId, "Cannot save file: no root view controller");
         [delegate cleanup];
-        [delegate release];
     }
-    [picker release];
 }
 
 void IosShareUtils::openFile() {
@@ -372,16 +368,15 @@ void IosShareUtils::openFile() {
 
     DocImportDelegate *delegate = [[DocImportDelegate alloc] init];
     delegate.mIosShareUtils = this;
-    picker.delegate = delegate; // assign; the delegate keeps itself alive until its callback
+    picker.delegate = delegate; // weak; the association below keeps it alive for the picker's lifetime
+    objc_setAssociatedObject(picker, kMobileSharingDelegateKey, delegate, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 
     UIViewController *root = topViewController();
     if (root != nil) {
         [root presentViewController:picker animated:YES completion:nil];
     } else {
         Q_EMIT shareError(0, "Cannot open file: no root view controller");
-        [delegate release];
     }
-    [picker release];
 }
 
 void IosShareUtils::handleImportedFile(const QString &filePath) {
