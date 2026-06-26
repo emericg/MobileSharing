@@ -62,10 +62,6 @@ Q_SIGNALS:
     void fileReceived(const QString &filePath);
     void fileSaved(int requestCode);
 
-    // Android only // Directory sharing (SAF DocumentsProvider) state changes
-    void directorySharingEnabledChanged();
-    void sharedDirectoryChanged();
-
 public:
     explicit MobileSharing_QmlDispatcher(QObject *parent = nullptr);
 };

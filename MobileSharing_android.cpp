@@ -324,38 +324,6 @@ void AndroidShareUtils::saveFile(const QString &filePath, const QString &suggest
 
 /* ************************************************************************** */
 
-void AndroidShareUtils::setDirectorySharing(bool enabled, const QString &dirPath, bool writable, const QString &title)
-{
-    // Hand the full state to Java, which persists it in SharedPreferences for
-    // QShareDocumentProvider and notifies SAF so any open picker refreshes its roots.
-    QJniObject jsDir = QJniObject::fromString(dirPath);
-    QJniObject jsTitle = QJniObject::fromString(title);
-    jboolean ok = QJniObject::callStaticMethod<jboolean>("io/emeric/mobilesharing/QShareUtils", "setDirectorySharing",
-                                                         "(ZLjava/lang/String;ZLjava/lang/String;)Z",
-                                                         enabled, jsDir.object<jstring>(), writable, jsTitle.object<jstring>());
-    if (!ok)
-    {
-        qWarning() << "setDirectorySharing: failed to apply config (enabled=" << enabled << "dir=" << dirPath << ")";
-    }
-}
-
-bool AndroidShareUtils::loadDirectorySharingState(QString &dirPath, bool &writable, QString &title)
-{
-    const bool enabled = QJniObject::callStaticMethod<jboolean>("io/emeric/mobilesharing/QShareUtils",
-                                                                "getDirectorySharingEnabled", "()Z");
-
-    dirPath = QJniObject::callStaticMethod<jstring>("io/emeric/mobilesharing/QShareUtils",
-                                                    "getSharedDirectory", "()Ljava/lang/String;").toString();
-    writable = QJniObject::callStaticMethod<jboolean>("io/emeric/mobilesharing/QShareUtils",
-                                                      "getSharedDirectoryWritable", "()Z");
-    title = QJniObject::callStaticMethod<jstring>("io/emeric/mobilesharing/QShareUtils",
-                                                  "getSharedDirectoryTitle", "()Ljava/lang/String;").toString();
-
-    return enabled;
-}
-
-/* ************************************************************************** */
-
 void AndroidShareUtils::onSaveResult(int requestCode, bool success, bool canceled)
 {
     qDebug() << "onSaveResult requestCode:" << requestCode << "success:" << success << "canceled:" << canceled;

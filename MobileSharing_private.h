@@ -82,28 +82,6 @@ public:
         qDebug() << "openFile";
     }
 
-    //! Apply the directory-sharing (SAF DocumentsProvider) state. Android-only; no-op elsewhere.
-    virtual void setDirectorySharing(bool enabled, const QString &dirPath, bool writable, const QString &title) {
-        qDebug() << "setDirectorySharing" << enabled << dirPath << writable << title;
-    }
-
-    /*!
-     * \brief Read back the persisted directory-sharing state (Android, from SharedPreferences).
-     * \param dirPath: Out; set to the stored shared directory when one was persisted.
-     * \param writable: Out; set to the stored read/write flag.
-     * \param title: Out; set to the stored root title when one was persisted.
-     * \return True if the feature was persisted as enabled.
-     * \note Android only.
-     *
-     * Lets MobileSharing seed its in-memory state on startup so it mirrors what
-     * the system-managed provider is actually serving (the provider keeps running
-     * even when the app UI is not).
-     */
-    virtual bool loadDirectorySharingState(QString &dirPath, bool &writable, QString &title) {
-        Q_UNUSED(dirPath) Q_UNUSED(writable) Q_UNUSED(title)
-        return false;
-    }
-
     const QMimeDatabase &getMimeDatabase() const {
         return m_mimeDatabase;
     }

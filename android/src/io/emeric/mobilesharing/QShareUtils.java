@@ -371,18 +371,18 @@ public class QShareUtils
     // config and pokes SAF so any open picker refreshes its list of roots. 'writable' is plumbed
     // for the future read/write wave; the provider currently serves read-only regardless.
     // Returns false if the activity/context is missing or the directory could not be created.
-    public static boolean setDirectorySharing(boolean enabled, String rootDirPath, boolean writable, String title) {
+    public static boolean setDocumentProvider(boolean enabled, String rootDirPath, boolean writable, String title) {
         if (m_activity == null) return false;
         final Context context = m_activity;
 
         if (enabled) {
             if (rootDirPath == null || rootDirPath.isEmpty()) {
-                Log.e("QShareUtils", "setDirectorySharing: empty rootDirPath");
+                Log.e("QShareUtils", "setDocumentProvider: empty rootDirPath");
                 return false;
             }
             File dir = new File(rootDirPath);
             if (!dir.exists() && !dir.mkdirs()) {
-                Log.e("QShareUtils", "setDirectorySharing: cannot create " + rootDirPath);
+                Log.e("QShareUtils", "setDocumentProvider: cannot create " + rootDirPath);
                 return false;
             }
         }
@@ -400,15 +400,16 @@ public class QShareUtils
             Uri rootsUri = DocumentsContract.buildRootsUri(docProviderAuthority(context));
             context.getContentResolver().notifyChange(rootsUri, null);
         } catch (Exception e) {
-            Log.w("QShareUtils", "setDirectorySharing: notifyChange failed - " + e.getMessage());
+            Log.w("QShareUtils", "setDocumentProvider: notifyChange failed - " + e.getMessage());
         }
 
-        Log.d("QShareUtils", "setDirectorySharing: enabled=" + enabled + " writable=" + writable + " dir=" + rootDirPath);
+        Log.d("QShareUtils", "setDocumentProvider: enabled=" + enabled + " writable=" + writable + " dir=" + rootDirPath);
         return true;
     }
 
-    // Read the persisted config back. Lets the C++/QML side mirror the live provider state on a
-    // fresh launch (the provider keeps serving from these prefs even when the app UI is not running).
+    // Read the persisted config back.
+    // Lets the C++/QML side mirror the live provider state on a fresh launch,
+    // (the provider keeps serving from these prefs even when the app UI is not running).
     private static SharedPreferences docProviderPrefs() {
         if (m_activity == null) return null;
         return m_activity.getSharedPreferences(DOC_PROVIDER_PREFS, Context.MODE_PRIVATE);

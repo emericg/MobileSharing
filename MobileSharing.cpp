@@ -97,21 +97,8 @@ MobileSharing::MobileSharing(QObject *parent) : QObject(parent)
     mIncomingDir = PlatformShareUtils::cacheIncomingDir();
     mOutgoingDir = PlatformShareUtils::cacheOutgoingDir();
 
-    // Default directory exposed by the optional directory-sharing feature: a persistent, app-owned
-    // folder (NOT the session-wiped cache above), under the app's own data location.
-    mSharedDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/MobileSharing/shared";
-
-    // The DocumentsProvider keeps serving across app exits/reboots from its own persisted state,
-    // so seed our in-memory state from it: otherwise the QML 'directorySharingEnabled' switch would
-    // read false on a fresh launch while the provider is actually still sharing. We only read here
-    // (no applyDirectorySharing()): the persisted config is already the source of truth.
-    QString persistedDir, persistedTitle;
-    bool persistedWritable = false;
-    const bool persistedEnabled = mPlatformShareUtils->loadDirectorySharingState(persistedDir, persistedWritable, persistedTitle);
-    if (!persistedDir.isEmpty()) mSharedDir = persistedDir;
-    if (!persistedTitle.isEmpty()) mSharedDirTitle = persistedTitle;
-    mDirSharingWritable = persistedWritable;
-    mDirSharingEnabled = persistedEnabled;
+    // Optional Android Storage Access Framework (SAF) DocumentProvider
+    mDocumentProvider = new DocumentProvider(this);
 
     // Session-scoped: wipe the whole directory, at the earliest point before any file can be received or sent
     QDir(mWorkingDir).removeRecursively();
@@ -219,55 +206,9 @@ QString MobileSharing::getCacheDirectory() const
 
 /* ************************************************************************** */
 
-void MobileSharing::applyDirectorySharing()
+DocumentProvider *MobileSharing::documentProvider() const
 {
-    // MobileSharing is the single source of truth; push the whole state down.
-    // The read/write decision stays here (mDirSharingWritable).
-    mPlatformShareUtils->setDirectorySharing(mDirSharingEnabled, mSharedDir, mDirSharingWritable, mSharedDirTitle);
-}
-
-bool MobileSharing::isDirectorySharingEnabled() const
-{
-    return mDirSharingEnabled;
-}
-
-void MobileSharing::setDirectorySharingEnabled(bool enabled)
-{
-    if (enabled == mDirSharingEnabled) return;
-
-    mDirSharingEnabled = enabled;
-    if (enabled)
-    {
-        // Make sure the exposed directory exists before the provider advertises it.
-        QDir().mkpath(mSharedDir);
-    }
-
-    applyDirectorySharing();
-    Q_EMIT directorySharingEnabledChanged();
-}
-
-QString MobileSharing::getSharedDirectory() const
-{
-    return mSharedDir;
-}
-
-void MobileSharing::setSharedDirectory(const QString &absolutePath)
-{
-    // Empty restores the default location.
-    const QString newDir = absolutePath.isEmpty()
-            ? QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/MobileSharing/shared"
-            : absolutePath;
-
-    if (newDir == mSharedDir) return;
-    mSharedDir = newDir;
-
-    if (mDirSharingEnabled)
-    {
-        QDir().mkpath(mSharedDir);
-        applyDirectorySharing();
-    }
-
-    Q_EMIT sharedDirectoryChanged();
+    return mDocumentProvider;
 }
 
 void MobileSharing::importFile(const QUrl &source)

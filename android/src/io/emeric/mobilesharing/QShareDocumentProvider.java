@@ -51,8 +51,8 @@ import android.webkit.MimeTypeMap;
  *  - Fully optional & runtime toggled. The provider is always declared in the manifest, but it
  *    is INERT until enabled: queryRoots() returns no root (so nothing shows up in any picker)
  *    and every document lookup is refused while sharing is disabled. The host turns it on/off at
- *    runtime through MobileSharing.setDirectorySharingEnabled() on the C++/QML side.
- *  - Config lives in SharedPreferences (written by QShareUtils.setDirectorySharing()). The Android
+ *    runtime through MobileSharing.setDocumentProviderEnabled() on the C++/QML side.
+ *  - Config lives in SharedPreferences (written by QShareUtils.setDocumentProvider()). The Android
  *    system may spin up the app process just to query this provider (e.g. the picker enumerating
  *    roots) before any Qt/QML is running, so the state must be readable without the rest of the
  *    app being initialized. SharedPreferences gives us exactly that.
@@ -66,7 +66,7 @@ public class QShareDocumentProvider extends DocumentsProvider
 {
     private static final String TAG = "QShareDocProvider";
 
-    // Shared with QShareUtils.setDirectorySharing() (kept in sync there).
+    // Shared with QShareUtils.setDocumentProvider() (kept in sync there).
     private static final String PREFS    = "MobileSharingDocProvider";
     private static final String KEY_ENABLED  = "enabled";
     private static final String KEY_ROOT_DIR = "rootDir";

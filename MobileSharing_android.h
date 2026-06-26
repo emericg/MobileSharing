@@ -75,12 +75,6 @@ public:
     void viewFile(const QString &filePath, const QString &title, const QString &mimeType, int requestId) override;
     void saveFile(const QString &filePath, const QString &suggestedName, const QString &mimeType, int requestId) override;
 
-    //! Persist the directory-sharing config for QShareDocumentProvider (and refresh SAF's roots).
-    void setDirectorySharing(bool enabled, const QString &dirPath, bool writable, const QString &title) override;
-
-    //! Read the directory-sharing config back from SharedPreferences (see QShareDocumentProvider).
-    bool loadDirectorySharingState(QString &dirPath, bool &writable, QString &title) override;
-
     /*!
      * \brief Called from JNI (QShareActivity) once a saveFile() flow finished in Java.
      * \param requestCode: The request id passed to saveFile().

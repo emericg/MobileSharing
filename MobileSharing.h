@@ -52,6 +52,7 @@
 #include <QDebug>
 
 #include "MobileSharing_private.h"
+#include "MobileSharing_DocumentProvider.h"
 
 class QQmlEngine;
 class QJSEngine;
@@ -79,10 +80,7 @@ class MobileSharing : public QObject
     QML_ELEMENT
     QML_SINGLETON
 
-    //! Whether the optional directory sharing (Android SAF DocumentsProvider) is currently on.
-    Q_PROPERTY(bool directorySharingEnabled READ isDirectorySharingEnabled WRITE setDirectorySharingEnabled NOTIFY directorySharingEnabledChanged)
-    //! Absolute path of the app-owned directory exposed when directory sharing is enabled.
-    Q_PROPERTY(QString sharedDirectory READ getSharedDirectory WRITE setSharedDirectory NOTIFY sharedDirectoryChanged)
+    Q_PROPERTY(DocumentProvider *documentProvider READ documentProvider CONSTANT)
 
 Q_SIGNALS:
     /*!
@@ -123,12 +121,6 @@ Q_SIGNALS:
      * A cancelled save emits shareFinished() instead, and a failed one shareError().
      */
     void fileSaved(int requestCode);
-
-    //! Emitted when directory sharing is turned on or off (see setDirectorySharingEnabled()).
-    void directorySharingEnabledChanged();
-
-    //! Emitted when the shared directory path changes (see setSharedDirectory()).
-    void sharedDirectoryChanged();
 
 public slots:
     // Internal: applies the incoming-file relocation into our cache, then re-emits fileReceived(). Not intended to be called by host code.
@@ -287,36 +279,16 @@ public:
     // Directory sharing (Android SAF DocumentsProvider) ///////////////////////
 
     /*!
-     * \brief Expose an app-owned directory to other apps through the system file picker (SAF).
+     * \brief Optional Android Storage Access Framework (SAF) DocumentProvider.
      *
-     * This is a fully optional, Android-only feature backed by a DocumentsProvider.
-     * It is OFF by default and inert until enabled: while disabled the shared directory
-     * is invisible in every picker and the provider refuses all access, so toggling
-     * this is the single on/off switch.
+     * The whole directory-sharing feature lives in this instance. Owned by MobileSharing, do not delete.
+     * Always valid on non-Android platforms, just doesn't do much :)
      *
-     * The exposed directory is the one returned by getSharedDirectory() (created on demand when
-     * enabling). The current implementation is READ-ONLY; other apps can browse and read files but
-     * not modify them. No-op on non-Android platforms.
-     *
-     * Requires the host AndroidManifest to declare the io.emeric.mobilesharing.QShareDocumentProvider
-     * <provider> entry (authority "${applicationId}.documents").
+     * Use it in QML through its property:
+     * - MobileSharing.documentProvider.enabled = true
+     * - var sharedRoot: "file://" + MobileSharing.documentProvider.sharedDirectory
      */
-    Q_INVOKABLE void setDirectorySharingEnabled(bool enabled);
-
-    //! Whether directory sharing is currently enabled. Always false on non-Android platforms.
-    Q_INVOKABLE bool isDirectorySharingEnabled() const;
-
-    /*!
-     * \brief Customize which app-owned directory is exposed by directory sharing.
-     * \param absolutePath: Absolute path to an app-owned directory (created on demand when sharing
-     *        is enabled). Pass an empty string to restore the default (<app data>/MobileSharing/shared).
-     *
-     * Safe to call while sharing is enabled: the change is applied to the live provider immediately.
-     */
-    Q_INVOKABLE void setSharedDirectory(const QString &absolutePath);
-
-    //! Absolute path of the directory exposed by directory sharing (under the app's own storage).
-    Q_INVOKABLE QString getSharedDirectory() const;
+    DocumentProvider *documentProvider() const;
 
 private slots:
     void onApplicationStateChanged(Qt::ApplicationState state);
@@ -328,16 +300,8 @@ private:
     QString mIncomingDir; //!< subdir where received files are copied (cache/MobileSharing/incoming)
     QString mOutgoingDir; //!< subdir where sending files are copied (cache/MobileSharing/outgoing)
 
-    // Directory sharing (Android SAF DocumentsProvider) states
-    // MobileSharing owns it and pushes the full state down to the Android
-    // platform backend, that persists it for QShareDocumentProvider.
-    bool mDirSharingEnabled = false;
-    bool mDirSharingWritable = false;             //!< FUTURE: read/write wave; forced read-only for now
-    QString mSharedDir;                           //!< persistent app-owned dir exposed when enabled
-    QString mSharedDirTitle = QStringLiteral("Shared"); //!< root title shown in the picker
-
-    //! Push the current directory-sharing state down to the platform backend.
-    void applyDirectorySharing();
+    //! Optional Android Storage Access Framework (SAF) DocumentProvider
+    DocumentProvider *mDocumentProvider = nullptr;
 
     //! Per-platform backend.
     PlatformShareUtils *mPlatformShareUtils = nullptr;

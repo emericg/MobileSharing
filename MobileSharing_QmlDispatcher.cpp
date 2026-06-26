@@ -36,11 +36,6 @@ MobileSharing_QmlDispatcher::MobileSharing_QmlDispatcher(QObject *parent) : QObj
 
     connect(ms, &MobileSharing::fileSaved,           this, &MobileSharing_QmlDispatcher::fileSaved);
     connect(ms, &MobileSharing::fileReceived,        this, &MobileSharing_QmlDispatcher::fileReceived);
-
-#if defined(Q_OS_ANDROID)
-    connect(ms, &MobileSharing::sharedDirectoryChanged,         this, &MobileSharing_QmlDispatcher::sharedDirectoryChanged);
-    connect(ms, &MobileSharing::directorySharingEnabledChanged, this, &MobileSharing_QmlDispatcher::directorySharingEnabledChanged);
-#endif
 }
 
 /* ************************************************************************** */

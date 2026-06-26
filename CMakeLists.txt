@@ -15,6 +15,7 @@ set(CORE_LIBRARIES Qt::Core Qt::Gui Qt::Qml)
 # Generic sources
 set(CORE_SOURCES
     MobileSharing.cpp MobileSharing.h MobileSharing_private.h
+    MobileSharing_DocumentProvider.cpp MobileSharing_DocumentProvider.h
     MobileSharing_QmlDispatcher.cpp MobileSharing_QmlDispatcher.h)
 
 # OS specific sources & dependencies
