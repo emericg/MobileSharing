@@ -352,7 +352,7 @@ void AndroidShareUtils::checkPendingIntents(const QString &workingDirPath)
         // Receiving requires QShareActivity (it overrides onNewIntent/onActivityResult and exposes checkPendingIntents).
         QJniEnvironment env;
         jclass shareActivityClass = env.findClass("io/emeric/mobilesharing/QShareActivity");
-        if (shareActivityClass && !env->IsInstanceOf(activity.object(), shareActivityClass))
+        if (!shareActivityClass || !env->IsInstanceOf(activity.object(), shareActivityClass))
         {
             //qWarning() << "MobileSharing: the running Activity is not a QShareActivity, incoming files will NOT be received."
             return;
