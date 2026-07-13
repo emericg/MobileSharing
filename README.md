@@ -297,8 +297,8 @@ Also inspired by:
 
 ## License
 
-This project is licensed under the [MIT license](LICENSE).
+This project is licensed under the [MIT license](LICENSE.md).
 
 > Copyright (c) 2017 Ekkehard Gentz (ekke)
 
-> Copyright (c) 2026 Emeric Grange (emeric.grange@gmail.com)
+> Copyright (c) 2026 Emeric Grange <emeric.grange@gmail.com>
